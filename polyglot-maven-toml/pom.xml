@@ -33,12 +33,13 @@
             <version>0.7.2</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/org.apache.tuweni/tuweni-toml -->
+        <!-- https://mvnrepository.com/artifact/io.tmio/tuweni-toml -->
         <dependency>
-            <groupId>org.apache.tuweni</groupId>
+            <groupId>io.tmio</groupId>
             <artifactId>tuweni-toml</artifactId>
-            <version>2.3.1</version>
+            <version>2.4.2</version>
         </dependency>
+
 
     </dependencies>
 

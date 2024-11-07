@@ -1,0 +1,38 @@
+#
+[project]
+model-version = '4.0.0'
+group-id = 'io.ast.polyglot-maven'
+artifact-id = 'polyglot-maven-toml-test'
+version = '0.0'
+packaging = 'jar'
+name = 'test Maven polyglot for TOML'
+
+[[project.developer]]
+id = "ast"
+
+[properties]
+maven.compiler.source = 23
+maven.compiler.target = 23
+project.build.sourceEncoding = 'UTF-8'
+junit.version = '5.11.3'
+
+[[dependency]]
+group-id = 'org.junit.jupiter'
+artifact-id = 'junit-jupiter-api'
+version = '${junit.version}'
+scppe = 'test'
+
+[[dependency]]
+group-id = 'org.junit.jupiter'
+artifact-id = 'junit-jupiter-engine'
+version = '${junit.version}'
+scppe = 'test'
+
+[[build.plugin]]
+group-id = 'org.codehaus.mojo'
+artifact-id = 'exec-maven-plugin'
+version = '3.3.0'
+
+[build.plugin.configuration]
+executable = 'maven'
+main-class = 'io.ast.maven.polyglot.toml.test.Main'
