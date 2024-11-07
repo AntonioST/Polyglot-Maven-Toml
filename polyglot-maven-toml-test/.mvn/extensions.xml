@@ -2,7 +2,7 @@
 <extensions>
     <extension>
         <groupId>io.ast.polyglot-maven</groupId>
-        <artifactId>polyglot-maven-toml</artifactId>
+        <artifactId>maven-polyglot-toml</artifactId>
         <version>0.0</version>
     </extension>
 </extensions>
