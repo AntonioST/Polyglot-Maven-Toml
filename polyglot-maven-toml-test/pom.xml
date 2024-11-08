@@ -4,9 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.ast.polyglot-maven</groupId>
+    <parent>
+        <groupId>io.ast.polyglot-maven</groupId>
+        <artifactId>root</artifactId>
+        <version>0.0</version>
+    </parent>
+
     <artifactId>polyglot-maven-toml-test</artifactId>
-    <version>0.0</version>
     <packaging>jar</packaging>
 
     <name>test Maven polyglot for TOML</name>

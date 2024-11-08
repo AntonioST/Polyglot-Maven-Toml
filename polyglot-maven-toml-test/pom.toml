@@ -1,11 +1,15 @@
 #
+[parent]
+group-id = 'io.ast.polyglot-maven'
+artifact-id = 'root'
+version = '0.0'
+
 [project]
 model-version = '4.0.0'
-group-id = 'io.ast.polyglot-maven'
 artifact-id = 'polyglot-maven-toml-test'
-version = '0.0'
 packaging = 'jar'
 name = 'test Maven polyglot for TOML'
+
 
 [[project.developer]]
 id = "ast"
