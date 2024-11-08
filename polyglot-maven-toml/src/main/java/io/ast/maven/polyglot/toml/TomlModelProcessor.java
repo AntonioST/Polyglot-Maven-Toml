@@ -111,11 +111,40 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "dependencyManagement":
                 model.setDependencyManagement(readTomlDependencyManager(config.getTable(key)));
                 break;
+            case "dependency":
+            case "dependencies": {
+                var old = model.getDependencies();
+                if (old == null) old = new ArrayList<>();
+                old.addAll(readTomlDependencies(config.getArray(key), null));
+                model.setDependencies(old);
+                break;
+            }
+            case "provider":
+            case "system":
+            case "compile":
+            case "runtime":
+            case "test": {
+                var table = config.getTable(key);
+                for (var sub : table.keySet()) {
+                    switch (sub) {
+                    case "dependency":
+                    case "dependencies":
+                        var old = model.getDependencies();
+                        if (old == null) old = new ArrayList<>();
+                        old.addAll(readTomlDependencies(table.getArray(sub), key));
+                        model.setDependencies(old);
+                        break;
+                    default:
+                        checkTag(key, sub);
+                    }
+                }
+                break;
+            }
             case "repositories":
-                model.setDependencies(readTomlDependencies(config.getArray(key)));
+                model.setRepositories(readTomlRepositories(config.getArray(key)));
                 break;
             case "pluginRepositories":
-                model.setPluginRepositories(readTomlPluginsRepositories(config.getArray(key)));
+                model.setPluginRepositories(readTomlRepositories(config.getArray(key)));
                 break;
             case "build":
                 model.setBuild(readTomlBuild(config.getTable(key)));
@@ -145,9 +174,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "modelVersion":
                 model.setModelVersion(config.getString(key));
                 break;
+            case "group":
             case "groupId":
                 model.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 model.setArtifactId(config.getString(key));
                 break;
@@ -213,9 +244,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var parent = new Parent();
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
+            case "group":
             case "groupId":
                 parent.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 parent.setArtifactId(config.getString(key));
                 break;
@@ -317,7 +350,14 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "developers");
         var ret = new ArrayList<Developer>(config.size());
         for (int i = 0; i < config.size(); i++) {
-            ret.add(readTomlContributor(new Developer(), config.getTable(i)));
+            var content = config.get(i);
+            if (content instanceof String developer) {
+                ret.add(parseContributor(new Developer(), developer));
+            } else if (content instanceof TomlTable developer) {
+                ret.add(readTomlContributor(new Developer(), developer));
+            } else {
+                throw new ModelParseException("Unrecognised 'developer' value: " + content, -1, -1);
+            }
         }
         return ret;
     }
@@ -332,9 +372,29 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "contributors");
         var ret = new ArrayList<Contributor>(config.size());
         for (int i = 0; i < config.size(); i++) {
-            ret.add(readTomlContributor(new Contributor(), config.getTable(i)));
+            var content = config.get(i);
+            if (content instanceof String developer) {
+                ret.add(parseContributor(new Contributor(), developer));
+            } else if (content instanceof TomlTable developer) {
+                ret.add(readTomlContributor(new Contributor(), developer));
+            } else {
+                throw new ModelParseException("Unrecognised 'contributor' value: " + content, -1, -1);
+            }
         }
         return ret;
+    }
+
+    private <T extends Contributor> T parseContributor(T contributor, String content) throws ModelParseException {
+        if (content.contains("<") && content.endsWith(">")) {
+            var i = content.indexOf('<');
+            var name = content.substring(0, i).strip();
+            var email = content.substring(i + 1, content.length() - 1).strip();
+            contributor.setName(name);
+            contributor.setEmail(email);
+        } else {
+            contributor.setName(content);
+        }
+        return contributor;
     }
 
     /**
@@ -486,7 +546,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, key);
             } else {
-                checkTag("properties", key);
+                checkTag("properties[" + key + "]", value.toString());
             }
         }
 
@@ -795,9 +855,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var loc = new Relocation();
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
+            case "group":
             case "groupId":
                 loc.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 loc.setArtifactId(config.getString(key));
                 break;
@@ -828,7 +890,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
             case "dependencies":
-                manager.setDependencies(readTomlDependencies(config.getArray(key)));
+                manager.setDependencies(readTomlDependencies(config.getArray(key), null));
                 break;
             default:
                 checkTag("dependencyManagement", key);
@@ -844,12 +906,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
-    private List<Dependency> readTomlDependencies(TomlArray config) throws ModelParseException {
+    private List<Dependency> readTomlDependencies(TomlArray config, String scope) throws ModelParseException {
         Objects.requireNonNull(config, "dependencies");
 
         var ret = new ArrayList<Dependency>(config.size());
         for (int i = 0; i < config.size(); i++) {
-            ret.add(readTomlDependency(config.getTable(i)));
+            ret.add(readTomlDependency(config.getTable(i), scope));
         }
 
         return ret;
@@ -861,15 +923,21 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
-    private Dependency readTomlDependency(TomlTable config) throws ModelParseException {
+    private Dependency readTomlDependency(TomlTable config, String scope) throws ModelParseException {
         Objects.requireNonNull(config, "dependency");
 
         var dep = new Dependency();
+        if (scope != null) {
+            dep.setScope(scope);
+        }
+
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
+            case "group":
             case "groupId":
                 dep.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 dep.setArtifactId(config.getString(key));
                 break;
@@ -883,7 +951,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 dep.setClassifier(config.getString(key));
                 break;
             case "scope":
-                dep.setScope(config.getString(key));
+                if (scope == null) {
+                    dep.setScope(config.getString(key));
+                } else {
+                    checkTag(scope + ".dependency[" + dep.getGroupId() + ":" + dep.getArtifactId() + "]", key);
+                }
                 break;
             case "systemPath":
                 dep.setSystemPath(config.getString(key));
@@ -908,8 +980,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
      */
-    private List<Repository> readTomlPluginsRepositories(TomlArray config) throws ModelParseException {
-        Objects.requireNonNull(config, "pluginsRepositories");
+    private List<Repository> readTomlRepositories(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config, "repositories");
 
         var ret = new ArrayList<Repository>(config.size());
         for (int i = 0; i < config.size(); i++) {
@@ -1078,9 +1150,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var ext = new Extension();
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
+            case "group":
             case "groupId":
                 ext.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 ext.setArtifactId(config.getString(key));
                 break;
@@ -1190,9 +1264,11 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var plugin = new Plugin();
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
+            case "group":
             case "groupId":
                 plugin.setGroupId(config.getString(key));
                 break;
+            case "artifact":
             case "artifactId":
                 plugin.setArtifactId(config.getString(key));
                 break;
@@ -1207,7 +1283,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 break;
             case "dependency":
             case "dependencies":
-                plugin.setDependencies(readTomlDependencies(config.getArray(key)));
+                plugin.setDependencies(readTomlDependencies(config.getArray(key), null));
                 break;
             case "goal":
             case "goals":
@@ -1349,18 +1425,24 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     private void checkAttribute(String key, String attr) throws ModelParseException {
         if (isStrict) {
             throw new ModelParseException("Unrecognised attribute: '" + key + "." + attr + "'", -1, -1);
+        } else {
+            System.out.println("Unrecognised attribute: '" + key + "." + attr + "'");
         }
     }
 
     private void checkTag(String tag) throws ModelParseException {
         if (isStrict) {
             throw new ModelParseException("Unrecognised tag: '" + tag + "'", -1, -1);
+        } else {
+            System.out.println("Unrecognised tag: '" + tag + "'");
         }
     }
 
     private void checkTag(String key, String tag) throws ModelParseException {
         if (isStrict) {
             throw new ModelParseException("Unrecognised tag: '" + key + "." + tag + "'", -1, -1);
+        } else {
+            System.out.println("Unrecognised tag: '" + key + "." + tag + "'");
         }
     }
 }
