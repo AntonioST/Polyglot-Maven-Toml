@@ -36,7 +36,5 @@ scppe = 'test'
 group-id = 'org.codehaus.mojo'
 artifact-id = 'exec-maven-plugin'
 version = '3.3.0'
+configuration = { executable = 'maven', main-class = 'io.ast.maven.polyglot.toml.test.Main' }
 
-[build.plugin.configuration]
-executable = 'maven'
-main-class = 'io.ast.maven.polyglot.toml.test.Main'

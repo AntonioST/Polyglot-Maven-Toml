@@ -20,6 +20,7 @@ import org.apache.tuweni.toml.TomlArray;
 import org.apache.tuweni.toml.TomlTable;
 import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.codehaus.plexus.util.xml.pull.XmlPullParser;
 import org.sonatype.maven.polyglot.io.ModelReaderSupport;
 
@@ -692,6 +693,16 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      */
     private void readTomlBuild(Model model, TomlTable config) throws ModelParseException {
         if (config == null) return;
+        model.setBuild(readTomlBuild(config));
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
+     */
+    private Build readTomlBuild(TomlTable config) throws ModelParseException {
 
         var build = new Build();
         for (var key : config.keySet()) {
@@ -751,6 +762,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             }
         }
 
+        return build;
     }
 
     /**
@@ -895,13 +907,15 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 break;
             case "goal":
             case "goals":
-                plugin.setGoals(asDOM(config.get(key)));
+                plugin.setGoals(asDOM("goals", config.getTable(key)));
                 break;
             case "inherited":
                 plugin.setInherited(config.getBoolean(key));
                 break;
             case "configuration":
-                plugin.setConfiguration(asDOM(config.get(key)));
+                var dom = asDOM("configuration", config.getTable(key));
+                System.out.println(dom);
+                plugin.setConfiguration(dom);
                 break;
             default:
                 if (isStrict) {
@@ -953,7 +967,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 exe.setInherited(config.getBoolean(key));
                 break;
             case "configuration":
-                exe.setConfiguration(asDOM(config.get(key)));
+                exe.setConfiguration(asDOM("configuration", config.getTable(key)));
                 break;
             default:
                 if (isStrict) {
@@ -975,9 +989,40 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         }
     }
 
-    private Object asDOM(Object obj) {
-        //XXX Unsupported Operation TomlModelProcessor.asDOM
-        throw new UnsupportedOperationException();
+    private Xpp3Dom asDOM(String name, TomlTable config) throws ModelParseException {
+        var dom = new Xpp3Dom(name);
+        for (var key : config.keySet()) {
+            if (config.isString(key)) {
+                var child = new Xpp3Dom(toCamelCase(key));
+                child.setValue(config.getString(key));
+                dom.addChild(child);
+            } else if (config.isBoolean(key)) {
+                var child = new Xpp3Dom(toCamelCase(key));
+                child.setValue(config.getBoolean(key).toString());
+                dom.addChild(child);
+            } else if (config.isTable(key)) {
+                dom.addChild(asDOM(toCamelCase(key), config.getTable(key)));
+            } else if (config.isArray(key)) {
+                var list = toCamelCase(key);
+                String item;
+                if (list.endsWith("s")) {
+                    item = list.substring(0, list.length() - 1);
+                } else {
+                    item = list;
+                    list = list + "s";
+                }
+
+                var array = config.getArray(key);
+                var child = new Xpp3Dom(list);
+                for (int i = 0; i < array.size(); i++) {
+                    child.addChild(asDOM(item, array.getTable(i)));
+                }
+                dom.addChild(child);
+            } else {
+                throw new ModelParseException("Unrecognised tag: '" + key + "'", -1, -1);
+            }
+        }
+        return dom;
     }
 
     private static String toCamelCase(String key) {
