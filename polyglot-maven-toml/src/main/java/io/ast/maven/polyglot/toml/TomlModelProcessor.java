@@ -23,7 +23,7 @@ import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.xml.pull.XmlPullParser;
 import org.sonatype.maven.polyglot.io.ModelReaderSupport;
 
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "JavadocReference", "JavadocDeclaration"})
 @Component(role = ModelProcessor.class)
 public class TomlModelProcessor extends ModelReaderSupport implements ModelProcessor {
 
@@ -78,9 +78,17 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var model = new Model();
 
         readTomlProject(model, toml.getTable("project"));
+        if (toml.contains("parent")) {
+            model.setParent(readTomlParent(toml.getTable("parent")));
+        }
+
         readTomlProperties(model, toml.getTable("properties"));
         // TODO dependencyManagement
         readTomlDependencies(model, toml.getArray("dependency"));
+        readTomlRepositories(model, toml.getArray("repositories"));
+        // TODO pluginRepositories
+        readTomlBuild(model, toml.getTable("build"));
+
 
         return model;
     }
@@ -95,20 +103,16 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "project");
 
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "parent":
                 model.setParent(readTomlParent(config.getTable(key)));
                 break;
-            case "model-version":
             case "modelVersion":
                 model.setModelVersion(config.getString(key));
                 break;
-            case "group-id":
             case "groupId":
                 model.setGroupId(config.getString(key));
                 break;
-
-            case "artifact-id":
             case "artifactId":
                 model.setArtifactId(config.getString(key));
                 break;
@@ -127,7 +131,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "url":
                 model.setUrl(config.getString(key));
                 break;
-            case "inception-year":
             case "inceptionYear":
                 model.setInceptionYear(config.getString(key));
                 break;
@@ -146,8 +149,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "contributors":
                 model.setContributors(readTomlContributor(config.getArray(key)));
                 break;
-            case "mailing-list":
-            case "mailing-lists":
             case "mailingList":
             case "mailingLists":
                 model.setMailingLists(readTomlMailingList(key, config.getArray(key)));
@@ -160,12 +161,10 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 model.setModules(config.getArray(key).toList().stream().map(Object::toString).toList());
                 break;
             case "scm":
-            case "issue-management":
             case "issueManagement":
-            case "ci-management":
             case "ciManagement":
-            case "distribution-management":
             case "distributionManagement":
+                // TODO
                 System.out.println("Unsupported tag now: 'project." + key + "'");
                 break;
 
@@ -188,19 +187,16 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var parent = new Parent();
         for (var key : config.keySet()) {
-            switch (key) {
-            case "group-id":
+            switch (toCamelCase(key)) {
             case "groupId":
                 parent.setGroupId(config.getString(key));
                 break;
-            case "artifact-id":
             case "artifactId":
                 parent.setArtifactId(config.getString(key));
                 break;
             case "version":
                 parent.setVersion(config.getString(key));
                 break;
-            case "relative-path":
             case "relativePath":
                 parent.setRelativePath(config.getString(key));
                 break;
@@ -224,7 +220,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var organization = new Organization();
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "name":
                 organization.setName(config.getString(key));
                 break;
@@ -268,7 +264,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var license = new License();
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "name":
                 license.setName(config.getString(key));
                 break;
@@ -337,7 +333,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config);
 
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "name":
                 contributor.setName(config.getString(key));
                 break;
@@ -350,7 +346,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "organization":
                 contributor.setOrganization(config.getString(key));
                 break;
-            case "organization-url":
             case "organizationUrl":
                 contributor.setOrganizationUrl(config.getString(key));
                 break;
@@ -419,7 +414,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var mail = new MailingList();
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "name":
                 mail.setName(config.getString(key));
                 break;
@@ -436,8 +431,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 mail.setArchive(config.getString(key));
                 break;
             case "other":
-            case "other-archive":
-            case "other-archives":
             case "otherArchive":
             case "otherArchives":
                 var archives = asStringList(config.get(key));
@@ -473,7 +466,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var pre = new Prerequisites();
         for (var key : config.keySet()) {
-            switch (key) {
+            switch (toCamelCase(key)) {
             case "maven":
                 pre.setMaven(config.getString(key));
                 break;
@@ -532,13 +525,24 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      */
     private void readTomlDependencies(Model model, TomlArray config) throws ModelParseException {
         if (config == null) return;
+        model.setDependencies(readTomlDependencies(config));
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
+     */
+    private List<Dependency> readTomlDependencies(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
 
         var ret = new ArrayList<Dependency>(config.size());
         for (int i = 0; i < config.size(); i++) {
             ret.add(readTomlDependency(config.getTable(i)));
         }
 
-        model.setDependencies(ret);
+        return ret;
     }
 
     /**
@@ -552,12 +556,10 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var dep = new Dependency();
         for (var key : config.keySet()) {
-            switch (key) {
-            case "group-id":
+            switch (toCamelCase(key)) {
             case "groupId":
                 dep.setGroupId(config.getString(key));
                 break;
-            case "artifact-id":
             case "artifactId":
                 dep.setArtifactId(config.getString(key));
                 break;
@@ -573,7 +575,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "scope":
                 dep.setScope(config.getString(key));
                 break;
-            case "system-path":
             case "systemPath":
                 dep.setSystemPath(config.getString(key));
                 break;
@@ -594,6 +595,376 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         return dep;
     }
 
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
+     */
+    private void readTomlRepositories(Model model, TomlArray config) throws ModelParseException {
+        if (config == null) return;
+
+        var ret = new ArrayList<Repository>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlRepositories(config.getTable(i)));
+        }
+
+        model.setRepositories(ret);
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
+     */
+    private Repository readTomlRepositories(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var rep = new Repository();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "releases":
+                rep.setReleases(readTomlRepositoryPolicy(rep.getName(), key, config.getTable(key)));
+                break;
+            case "snapshots":
+                rep.setSnapshots(readTomlRepositoryPolicy(rep.getName(), key, config.getTable(key)));
+                break;
+            case "id":
+                rep.setId(config.getString(key));
+                break;
+            case "name":
+                rep.setName(config.getString(key));
+                break;
+            case "url":
+                rep.setUrl(config.getString(key));
+                break;
+            case "layout":
+                rep.setLayout(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    var name = rep.getName();
+                    throw new ModelParseException("Unrecognised tag: 'repository[" + name + "]." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return rep;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseRepositoryPolicy(XmlPullParser, boolean)
+     */
+    private RepositoryPolicy readTomlRepositoryPolicy(String repository, String tag, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var rep = new RepositoryPolicy();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "enabled":
+                rep.setEnabled(config.getBoolean(key));
+                break;
+            case "updatePolicy":
+                rep.setUpdatePolicy(config.getString(key));
+                break;
+            case "checksumPolicy":
+                rep.setChecksumPolicy(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'repository[" + repository + "]." + tag + "." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return rep;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
+     */
+    private void readTomlBuild(Model model, TomlTable config) throws ModelParseException {
+        if (config == null) return;
+
+        var build = new Build();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "sourceDirectory":
+                build.setSourceDirectory(config.getString(key));
+                break;
+            case "scriptSourceDirectory":
+                build.setScriptSourceDirectory(config.getString(key));
+                break;
+            case "testSourceDirectory":
+                build.setTestSourceDirectory(config.getString(key));
+                break;
+            case "outputDirectory":
+                build.setOutputDirectory(config.getString(key));
+                break;
+            case "testOutputDirectory":
+                build.setTestOutputDirectory(config.getString(key));
+                break;
+            case "extension":
+            case "extensions":
+                build.setExtensions(readTomlExtension(config.getArray(key)));
+                break;
+            case "defaultGoal":
+                build.setDefaultGoal(config.getString(key));
+                break;
+            case "resource":
+            case "resources":
+                build.setResources(readTomlResource(config.getArray(key)));
+                break;
+            case "testResource":
+            case "testResources":
+                build.setTestResources(readTomlResource(config.getArray(key)));
+                break;
+            case "directory":
+                build.setDirectory(config.getString(key));
+                break;
+            case "finalName":
+                build.setFinalName(config.getString(key));
+                break;
+            case "filter":
+            case "filters":
+                build.setFilters(asStringList(config.get(key)));
+                break;
+            case "plugin":
+            case "plugins":
+                build.setPlugins(readTomlPlugins(config.getArray(key)));
+                break;
+            case "pluginManagement":
+                // TODO
+                System.out.println("Unsupported tag now: 'build." + key + "'");
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'build." + key + "'", -1, -1);
+                }
+            }
+        }
+
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseExtension(XmlPullParser, boolean)
+     */
+    private List<Extension> readTomlExtension(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+        var ret = new ArrayList<Extension>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlExtension(config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseExtension(XmlPullParser, boolean)
+     */
+    private Extension readTomlExtension(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var ext = new Extension();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "groupId":
+                ext.setGroupId(config.getString(key));
+                break;
+            case "artifactId":
+                ext.setArtifactId(config.getString(key));
+                break;
+            case "version":
+                ext.setVersion(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    var name = ext.getGroupId() + ":" + ext.getArtifactId();
+                    throw new ModelParseException("Unrecognised tag: 'extension[" + name + "]." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return ext;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseResource(XmlPullParser, boolean)
+     */
+    private List<Resource> readTomlResource(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+        var ret = new ArrayList<Resource>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlResource(config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseResource(XmlPullParser, boolean)
+     */
+    private Resource readTomlResource(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var res = new Resource();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "targetPath":
+                res.setTargetPath(config.getString(key));
+                break;
+            case "filtering":
+                res.setFiltering(config.getBoolean(key));
+                break;
+            case "include":
+            case "includes":
+                res.setIncludes(asStringList(config.get(key)));
+                break;
+            case "exclude":
+            case "excludes":
+                res.setExcludes(asStringList(config.get(key)));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'resource." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return res;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
+     */
+    private List<Plugin> readTomlPlugins(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+        var ret = new ArrayList<Plugin>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlPlugins(config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
+     */
+    private Plugin readTomlPlugins(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var plugin = new Plugin();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "groupId":
+                plugin.setGroupId(config.getString(key));
+                break;
+            case "artifactId":
+                plugin.setArtifactId(config.getString(key));
+                break;
+            case "version":
+                plugin.setVersion(config.getString(key));
+                break;
+            case "extensions":
+                plugin.setExtensions(config.getBoolean(key));
+                break;
+            case "executions": {
+                var name = plugin.getGroupId() + ":" + plugin.getArtifactId();
+                plugin.setExecutions(readTomlPluginExecutions(name, config.getArray(key)));
+                break;
+            }
+            case "dependency":
+            case "dependencies":
+                plugin.setDependencies(readTomlDependencies(config.getArray(key)));
+                break;
+            case "goal":
+            case "goals":
+                plugin.setGoals(asDOM(config.get(key)));
+                break;
+            case "inherited":
+                plugin.setInherited(config.getBoolean(key));
+                break;
+            case "configuration":
+                plugin.setConfiguration(asDOM(config.get(key)));
+                break;
+            default:
+                if (isStrict) {
+                    var name = plugin.getGroupId() + ":" + plugin.getArtifactId();
+                    throw new ModelParseException("Unrecognised tag: 'plugin[" + name + "]." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return plugin;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parsePluginExecution(XmlPullParser, boolean)
+     */
+    private List<PluginExecution> readTomlPluginExecutions(String plugin, TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+        var ret = new ArrayList<PluginExecution>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlPluginExecutions(plugin, config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parsePluginExecution(XmlPullParser, boolean)
+     */
+    private PluginExecution readTomlPluginExecutions(String plugin, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var exe = new PluginExecution();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "id":
+                exe.setId(config.getString(key));
+                break;
+            case "phase":
+                exe.setPhase(config.getString(key));
+                break;
+            case "goal":
+            case "goals":
+                exe.setGoals(asStringList(config.get(key)));
+                break;
+            case "inherited":
+                exe.setInherited(config.getBoolean(key));
+                break;
+            case "configuration":
+                exe.setConfiguration(asDOM(config.get(key)));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'plugin[" + plugin + "]." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return exe;
+    }
+
     private List<String> asStringList(Object obj) {
         if (obj instanceof String s) {
             return List.of(s);
@@ -602,5 +973,34 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         } else {
             return null;
         }
+    }
+
+    private Object asDOM(Object obj) {
+        //XXX Unsupported Operation TomlModelProcessor.asDOM
+        throw new UnsupportedOperationException();
+    }
+
+    private static String toCamelCase(String key) {
+        if (!key.contains("-")) {
+            return key;
+        }
+
+        var length = key.length();
+        var buffer = new StringBuilder(length);
+        int i = 0;
+        int j;
+        while (i < length && (j = key.indexOf('-', i)) != -1) {
+            buffer.append(key, i, j);
+            if (j + 1 < length) {
+                buffer.append(Character.toUpperCase(key.charAt(j + 1)));
+            }
+            i = j + 2;
+        }
+
+        if (i < length) {
+            buffer.append(key, i, length);
+        }
+
+        return buffer.toString();
     }
 }
