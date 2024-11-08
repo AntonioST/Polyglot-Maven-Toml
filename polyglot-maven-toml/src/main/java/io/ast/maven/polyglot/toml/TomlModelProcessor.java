@@ -4,10 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import org.apache.maven.model.*;
 import org.apache.maven.model.building.FileModelSource;
@@ -73,23 +70,62 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         }
     }
 
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
+     */
     private Model readToml(Reader input) throws IOException, ModelParseException {
-        var toml = Toml.parse(input);
+        var config = Toml.parse(input);
 
         var model = new Model();
-
-        readTomlProject(model, toml.getTable("project"));
-        if (toml.contains("parent")) {
-            model.setParent(readTomlParent(toml.getTable("parent")));
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "project":
+                readTomlProject(model, config.getTable(key));
+                break;
+            case "parent":
+                model.setParent(readTomlParent(config.getTable(key)));
+                break;
+            case "properties":
+                for (var entry : readTomlProperties(config.getTable(key)).entrySet()) {
+                    model.addProperty(entry.getKey(), entry.getValue());
+                }
+                break;
+            case "scm":
+                model.setScm(readTomlScm(config.getTable(key)));
+                break;
+            case "issue":
+            case "issueManagement":
+                model.setIssueManagement(readTomlIssueManagement(config.getTable(key)));
+                break;
+            case "ci":
+            case "ciManagement":
+                model.setCiManagement(readTomlCiManagement(config.getTable(key)));
+                break;
+            case "distribution":
+            case "distributionManagement":
+                model.setDistributionManagement(readTomlDistributionManagement(config.getTable(key)));
+                break;
+            case "dependencyManagement":
+                model.setDependencyManagement(readTomlDependencyManager(config.getTable(key)));
+                break;
+            case "repositories":
+                model.setDependencies(readTomlDependencies(config.getArray(key)));
+                break;
+            case "pluginRepositories":
+                model.setPluginRepositories(readTomlPluginsRepositories(config.getArray(key)));
+                break;
+            case "build":
+                model.setBuild(readTomlBuild(config.getTable(key)));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: '" + key + "'", -1, -1);
+                }
+            }
         }
-
-        readTomlProperties(model, toml.getTable("properties"));
-        // TODO dependencyManagement
-        readTomlDependencies(model, toml.getArray("dependency"));
-        readTomlRepositories(model, toml.getArray("repositories"));
-        // TODO pluginRepositories
-        readTomlBuild(model, toml.getTable("build"));
-
 
         return model;
     }
@@ -159,16 +195,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 break;
             case "module":
             case "modules":
-                model.setModules(config.getArray(key).toList().stream().map(Object::toString).toList());
+                model.setModules(asStringList(config.get(key)));
                 break;
-            case "scm":
-            case "issueManagement":
-            case "ciManagement":
-            case "distributionManagement":
-                // TODO
-                System.out.println("Unsupported tag now: 'project." + key + "'");
-                break;
-
             default:
                 if (isStrict) {
                     throw new ModelParseException("Unrecognised tag: 'project." + key + "'", -1, -1);
@@ -487,29 +515,33 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
      */
-    private void readTomlProperties(Model model, TomlTable config) throws ModelParseException {
-        if (config == null) return;
+    private Map<String, String> readTomlProperties(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var map = new HashMap<String, String>();
         for (var key : config.keySet()) {
             var value = config.get(key);
             if (value instanceof String v) {
-                model.addProperty(key, v);
+                map.put(key, v);
             } else if (value instanceof TomlTable table) {
-                readTomlProperties(model, table, key);
+                readTomlProperties(map, table, key);
             } else {
                 if (isStrict) {
                     throw new ModelParseException("Unrecognised tag: 'properties[" + key + "]'", -1, -1);
                 }
             }
         }
+
+        return map;
     }
 
-    private void readTomlProperties(Model model, TomlTable config, String p) throws ModelParseException {
+    private void readTomlProperties(Map<String, String> map, TomlTable config, String p) throws ModelParseException {
         for (var key : config.keySet()) {
             var value = config.get(key);
             if (value instanceof String v) {
-                model.addProperty(p + "." + key, v);
+                map.put(p + "." + key, v);
             } else if (value instanceof TomlTable table) {
-                readTomlProperties(model, table, p + "." + key);
+                readTomlProperties(map, table, p + "." + key);
             } else {
                 if (isStrict) {
                     throw new ModelParseException("Unrecognised tag: 'properties[" + p + "." + key + "]'", -1, -1);
@@ -522,11 +554,350 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @param model
      * @param config
      * @throws ModelParseException
-     * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
+     * @see MavenXpp3Reader#parseScm(XmlPullParser, boolean)
      */
-    private void readTomlDependencies(Model model, TomlArray config) throws ModelParseException {
-        if (config == null) return;
-        model.setDependencies(readTomlDependencies(config));
+    private Scm readTomlScm(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var scm = new Scm();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "child":
+                for (var entry : readTomlProperties(config.getTable(key)).entrySet()) {
+                    switch (entry.getKey()) {
+                    case "scm.connection.inherit.append.path":
+                        scm.setChildScmConnectionInheritAppendPath(entry.getValue());
+                        break;
+                    case "child.scm.developerConnection.inherit.append.path":
+                        scm.setChildScmDeveloperConnectionInheritAppendPath(entry.getValue());
+                        break;
+                    case "child.scm.url.inherit.append.path":
+                        scm.setChildScmUrlInheritAppendPath(entry.getValue());
+                        break;
+                    default:
+                        if (isStrict) {
+                            throw new ModelParseException("Unrecognised attribute: 'scm." + entry.getKey() + "'", -1, -1);
+                        }
+                    }
+                }
+                break;
+            case "connection":
+                scm.setConnection(config.getString(key));
+                break;
+            case "developerConnection":
+                scm.setDeveloperConnection(config.getString(key));
+                break;
+            case "tag":
+                scm.setTag(config.getString(key));
+                break;
+            case "url":
+                scm.setUrl(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'scm." + key + "'", -1, -1);
+                }
+            }
+        }
+        return scm;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseIssueManagement(XmlPullParser, boolean)
+     */
+    private IssueManagement readTomlIssueManagement(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var manager = new IssueManagement();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "system":
+                manager.setSystem(config.getString(key));
+                break;
+            case "url":
+                manager.setUrl(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'issueManagement." + key + "'", -1, -1);
+                }
+            }
+        }
+        return manager;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseCiManagement(XmlPullParser, boolean)
+     */
+    private CiManagement readTomlCiManagement(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var manager = new CiManagement();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "system":
+                manager.setSystem(config.getString(key));
+                break;
+            case "url":
+                manager.setUrl(config.getString(key));
+                break;
+            case "notifiers":
+                manager.setNotifiers(readTomlNotifier(config.getArray(key)));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'ciManagement." + key + "'", -1, -1);
+                }
+            }
+        }
+        return manager;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
+     */
+    private List<Notifier> readTomlNotifier(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var ret = new ArrayList<Notifier>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlNotifier(config.getTable(i)));
+        }
+
+        return ret;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
+     */
+    private Notifier readTomlNotifier(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var not = new Notifier();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "type":
+                not.setType(config.getString(key));
+                break;
+            case "sendOnError":
+                not.setSendOnError(config.getBoolean(key));
+                break;
+            case "sendOnFailure":
+                not.setSendOnFailure(config.getBoolean(key));
+                break;
+            case "sendOnSuccess":
+                not.setSendOnSuccess(config.getBoolean(key));
+                break;
+            case "sendOnWarning":
+                not.setSendOnWarning(config.getBoolean(key));
+                break;
+            case "address":
+                not.setAddress(config.getString(key));
+                break;
+            case "configuration":
+                for (var entry : readTomlProperties(config.getTable(key)).entrySet()) {
+                    not.addConfiguration(entry.getKey(), entry.getValue());
+                }
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'ciManagement.notifier" + key + "'", -1, -1);
+                }
+            }
+        }
+        return not;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDistributionManagement(XmlPullParser, boolean)
+     */
+    private DistributionManagement readTomlDistributionManagement(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var manager = new DistributionManagement();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "repository":
+                manager.setRepository(readTomlDeploymentRepository(config.getTable(key)));
+                break;
+            case "snapshotRepository":
+                manager.setSnapshotRepository(readTomlDeploymentRepository(config.getTable(key)));
+                break;
+            case "site":
+                manager.setSite(readTomlSite(config.getTable(key)));
+                break;
+            case "downloadUrl":
+                manager.setDownloadUrl(config.getString(key));
+                break;
+            case "relocation":
+                manager.setRelocation(readTomlRelocation(config.getTable(key)));
+                break;
+            case "status":
+                manager.setStatus(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'distributionManagement." + key + "'", -1, -1);
+                }
+            }
+        }
+        return manager;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDeploymentRepository(XmlPullParser, boolean)
+     */
+    private DeploymentRepository readTomlDeploymentRepository(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var repo = new DeploymentRepository();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "uniqueVersion":
+                repo.setUniqueVersion(config.getBoolean(key));
+                break;
+            case "releases":
+                repo.setReleases(readTomlRepositoryPolicy(repo.getName(), "releases", config.getTable(key)));
+                break;
+            case "snapshots":
+                repo.setSnapshots(readTomlRepositoryPolicy(repo.getName(), "snapshots", config.getTable(key)));
+                break;
+            case "id":
+                repo.setId(config.getString(key));
+                break;
+            case "name":
+                repo.setName(config.getString(key));
+                break;
+            case "url":
+                repo.setUrl(config.getString(key));
+                break;
+            case "layout":
+                repo.setLayout(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised attribute: 'repository." + key + "'", -1, -1);
+                }
+            }
+        }
+        return repo;
+    }
+
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseSite(XmlPullParser, boolean)
+     */
+    private Site readTomlSite(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var site = new Site();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "child":
+                for (var entry : readTomlProperties(config.getTable(key)).entrySet()) {
+                    switch (entry.getKey()) {
+                    case "site.url.inherit.append.path":
+                        site.setChildSiteUrlInheritAppendPath(entry.getValue());
+                        break;
+                    default:
+                        if (isStrict) {
+                            throw new ModelParseException("Unrecognised attribute: 'site." + entry.getKey() + "'", -1, -1);
+                        }
+                    }
+                }
+                break;
+            case "id":
+                site.setId(config.getString(key));
+                break;
+            case "name":
+                site.setName(config.getString(key));
+                break;
+            case "url":
+                site.setUrl(config.getString(key));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'site." + key + "'", -1, -1);
+                }
+            }
+        }
+        return site;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseRelocation(XmlPullParser, boolean)
+     */
+    private Relocation readTomlRelocation(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var loc = new Relocation();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "groupId":
+                loc.setGroupId(config.getString(key));
+                break;
+            case "artifactId":
+                loc.setArtifactId(config.getString(key));
+                break;
+            case "version":
+                loc.setVersion(config.getString(key));
+                break;
+            case "message":
+                loc.setMessage(config.getString(key));
+                break;
+            }
+        }
+
+        return loc;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDependencyManagement(XmlPullParser, boolean)
+     */
+    private DependencyManagement readTomlDependencyManager(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var manager = new DependencyManagement();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "dependencies":
+                manager.setDependencies(readTomlDependencies(config.getArray(key)));
+                break;
+            default:
+                if (isStrict) {
+                    throw new ModelParseException("Unrecognised tag: 'dependencyManagement." + key + "'", -1, -1);
+                }
+            }
+        }
+
+        return manager;
     }
 
     /**
@@ -594,6 +965,23 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         }
 
         return dep;
+    }
+
+    /**
+     * @param model
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
+     */
+    private List<Repository> readTomlPluginsRepositories(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config);
+
+        var ret = new ArrayList<Repository>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlRepositories(config.getTable(i)));
+        }
+
+        return ret;
     }
 
     /**
@@ -691,18 +1079,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
      */
-    private void readTomlBuild(Model model, TomlTable config) throws ModelParseException {
-        if (config == null) return;
-        model.setBuild(readTomlBuild(config));
-    }
-
-    /**
-     * @param model
-     * @param config
-     * @throws ModelParseException
-     * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
-     */
     private Build readTomlBuild(TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config);
 
         var build = new Build();
         for (var key : config.keySet()) {
