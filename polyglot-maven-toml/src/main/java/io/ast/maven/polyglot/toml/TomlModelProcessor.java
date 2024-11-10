@@ -202,12 +202,16 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 model.setLicenses(readTomlLicense(config.getArray(key)));
                 break;
             case "developer":
+                model.setDevelopers(append(model.getDevelopers(), readTomlDeveloper(config.getArray(key))));
+                break;
             case "developers":
-                model.setDevelopers(readTomlDeveloper(config.getArray(key)));
+                model.setDevelopers(append(model.getDevelopers(), readTomlDevelopers(config.getArray(key))));
                 break;
             case "contributor":
+                model.setContributors(append(model.getContributors(), readTomlContributor(config.getArray(key))));
+                break;
             case "contributors":
-                model.setContributors(readTomlContributor(config.getArray(key)));
+                model.setContributors(append(model.getContributors(), readTomlContributors(config.getArray(key))));
                 break;
             case "mailingList":
             case "mailingLists":
@@ -335,19 +339,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     *
-     * <pre>
-     *     [project]
-     *     developer = [
-     *      'Name',
-     *      'Name &lt;Email&gt;'
-     *     ]
-     * </pre>
      * <pre>
      *     [[project.developer]]
      *     name = '...'
      *     email = '...'
      * </pre>
+     *
      * @param config Developer toml array
      * @return list of Developer
      * @throws ModelParseException
@@ -357,37 +354,79 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "developers");
         var ret = new ArrayList<Developer>(config.size());
         for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlContributor(new Developer(), config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * <pre>
+     *     [project]
+     *     developers = [
+     *      'Name',
+     *      'Name &lt;Email&gt;',
+     *      {name = '...', email = '...'}
+     *     ]
+     * </pre>
+     *
+     * @param config Developer toml array
+     * @return list of Developer
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDeveloper(XmlPullParser, boolean)
+     */
+    private List<Developer> readTomlDevelopers(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config, "developers");
+        var ret = new ArrayList<Developer>(config.size());
+        for (int i = 0; i < config.size(); i++) {
             var content = config.get(i);
             if (content instanceof String developer) {
                 ret.add(parseContributor(new Developer(), developer));
             } else if (content instanceof TomlTable developer) {
                 ret.add(readTomlContributor(new Developer(), developer));
             } else {
-                throw new ModelParseException("Unrecognised 'developer' value: " + content, -1, -1);
+                checkType("developer", "String|Table");
             }
         }
         return ret;
     }
 
     /**
-     <pre>
-     *     [project]
-     *     contributor = [
-     *      'Name',
-     *      'Name &lt;Email&gt;'
-     *     ]
-     * </pre>
      * <pre>
      *     [[project.contributor]]
      *     name = '...'
      *     email = '...'
      * </pre>
+     *
      * @param config Contributor toml array
      * @return list of Contributor
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseContributor(XmlPullParser, boolean)
      */
     private List<Contributor> readTomlContributor(TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config, "contributors");
+        var ret = new ArrayList<Contributor>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlContributor(new Contributor(), config.getTable(i)));
+        }
+        return ret;
+    }
+
+    /**
+     * <pre>
+     *     [project]
+     *     contributors = [
+     *      'Name',
+     *      'Name &lt;Email&gt;',
+     *      {name = '...', email = '...'}
+     *     ]
+     * </pre>
+     *
+     * @param config Contributor toml array
+     * @return list of Contributor
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseContributor(XmlPullParser, boolean)
+     */
+    private List<Contributor> readTomlContributors(TomlArray config) throws ModelParseException {
         Objects.requireNonNull(config, "contributors");
         var ret = new ArrayList<Contributor>(config.size());
         for (int i = 0; i < config.size(); i++) {
@@ -929,17 +968,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(model, "model");
         Objects.requireNonNull(config, "dependencies");
 
-        setDependencies(model, readTomlDependencies(config, scope));
-    }
-
-    private void setDependencies(Model model, List<Dependency> deps) {
-        var old = model.getDependencies();
-        if (old == null) {
-            old = new ArrayList<>(deps);
-        } else {
-            old.addAll(deps);
-        }
-        model.setDependencies(old);
+        model.setDependencies(append(model.getDependencies(), readTomlDependencies(config, scope)));
     }
 
     private void readTomlDependencies(Model model, TomlTable config) throws ModelParseException {
@@ -954,9 +983,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "runtime":
             case "test":
                 if (config.isArray(key)) {
-                    setDependencies(model, readTomlDependencies(config.getArray(key), key));
+                    model.setDependencies(append(model.getDependencies(), readTomlDependencies(config.getArray(key), key)));
                 } else if (config.isTable(key)) {
-                    setDependencies(model, readTomlDependencies(config.getTable(key), key));
+                    model.setDependencies(append(model.getDependencies(), readTomlDependencies(config.getTable(key), key)));
                 } else {
                     checkTag("dependency", key);
                 }
@@ -1297,7 +1326,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 break;
             case "plugin":
             case "plugins":
-                build.setPlugins(readTomlPlugins(config.getArray(key)));
+                build.setPlugins(readTomlPlugins(config.get(key)));
                 break;
             case "pluginManagement":
                 build.setPluginManagement(readTomlPluginManagement(config.getTable(key)));
@@ -1424,6 +1453,60 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
+     * <pre>
+     *     [[build.plugin]]
+     *     group = '...'
+     *     artifact = '..'
+     *     version = '...'
+     *     configuration = '...'
+     * </pre>
+     * <pre>
+     *     [build.plugin."group:artifact:version"]
+     *     configuration = '...'
+     * </pre>
+     *
+     * @param config
+     * @return
+     * @throws ModelParseException
+     */
+    private List<Plugin> readTomlPlugins(Object config) throws ModelParseException {
+        Objects.requireNonNull(config, "plugins");
+
+        if (config instanceof TomlArray array) {
+            return readTomlPlugins(array);
+
+        } else if (config instanceof TomlTable table) {
+            var ret = new ArrayList<Plugin>(table.size());
+            for (var key : table.keySet()) {
+                var plugin = new Plugin();
+                var parts = key.split(":");
+                plugin.setGroupId(parts[0]);
+                plugin.setArtifactId(parts[1]);
+                plugin.setVersion(parts[2]);
+
+                var pluginConfig = table.getTable(List.of(key));
+                for (var subkey : pluginConfig.keySet()) {
+                    readTomlPlugin(plugin, pluginConfig, subkey);
+                }
+
+                ret.add(plugin);
+            }
+            return ret;
+        } else {
+            checkType("build.plugin", "Array|Table");
+            return List.of();
+        }
+    }
+
+    /**
+     * <pre>
+     *     [[build.plugin]]
+     *     group = '...'
+     *     artifact = '..'
+     *     version = '...'
+     *     configuration = '...'
+     * </pre>
+     *
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
@@ -1432,7 +1515,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "plugins");
         var ret = new ArrayList<Plugin>(config.size());
         for (int i = 0; i < config.size(); i++) {
-            ret.add(readTomlPlugins(config.getTable(i)));
+            ret.add(readTomlPlugin(config.getTable(i)));
         }
         return ret;
     }
@@ -1443,7 +1526,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
      */
-    private Plugin readTomlPlugins(TomlTable config) throws ModelParseException {
+    private Plugin readTomlPlugin(TomlTable config) throws ModelParseException {
         Objects.requireNonNull(config, "plugin");
 
         var plugin = new Plugin();
@@ -1460,29 +1543,45 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "version":
                 plugin.setVersion(config.getString(key));
                 break;
-            case "extensions":
-                plugin.setExtensions(config.getBoolean(key));
-                break;
-            case "executions":
-                plugin.setExecutions(readTomlPluginExecutions(plugin, config.getArray(key)));
-                break;
-            case "dependency":
-            case "dependencies":
-                plugin.setDependencies(readTomlDependencies(config.getArray(key), null));
-                break;
-            case "goal":
-            case "goals":
-                plugin.setGoals(asDOM("goals", config.getTable(key)));
-                break;
-            case "inherited":
-                plugin.setInherited(config.getBoolean(key));
-                break;
-            case "configuration":
-                plugin.setConfiguration(asDOM("configuration", config.getTable(key)));
-                break;
             default:
-                checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "]", key);
+                readTomlPlugin(plugin, config, key);
             }
+        }
+
+        return plugin;
+    }
+
+    /**
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
+     */
+    private Plugin readTomlPlugin(Plugin plugin, TomlTable config, String key) throws ModelParseException {
+        Objects.requireNonNull(config, "plugin");
+
+        switch (toCamelCase(key)) {
+        case "extensions":
+            plugin.setExtensions(config.getBoolean(key));
+            break;
+        case "executions":
+            plugin.setExecutions(readTomlPluginExecutions(plugin, config.getArray(key)));
+            break;
+        case "dependency":
+        case "dependencies":
+            plugin.setDependencies(readTomlDependencies(config.getArray(key), null));
+            break;
+        case "goal":
+        case "goals":
+            plugin.setGoals(asDOM("goals", config.getTable(key)));
+            break;
+        case "inherited":
+            plugin.setInherited(config.getBoolean(key));
+            break;
+        case "configuration":
+            plugin.setConfiguration(asDOM("configuration", config.getTable(key)));
+            break;
+        default:
+            checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "]", key);
         }
 
         return plugin;
@@ -1605,6 +1704,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         }
 
         return buffer.toString();
+    }
+
+    private static <T> List<T> append(List<T> old, List<T> add) {
+        if (old == null) old = new ArrayList<>();
+        old.addAll(add);
+        return old;
     }
 
     private void checkAttribute(String key, String attr) throws ModelParseException {
