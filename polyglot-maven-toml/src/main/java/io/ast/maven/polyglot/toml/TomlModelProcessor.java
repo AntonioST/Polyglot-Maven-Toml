@@ -21,7 +21,7 @@ import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.codehaus.plexus.util.xml.pull.XmlPullParser;
 import org.sonatype.maven.polyglot.io.ModelReaderSupport;
 
-@SuppressWarnings({"unused", "JavadocReference", "JavadocDeclaration"})
+@SuppressWarnings({"unused", "JavadocReference"})
 @Component(role = ModelProcessor.class)
 public class TomlModelProcessor extends ModelReaderSupport implements ModelProcessor {
 
@@ -71,8 +71,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
-     * @param config
+     * @param input pom input reader
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
      */
@@ -111,35 +110,30 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "dependencyManagement":
                 model.setDependencyManagement(readTomlDependencyManager(config.getTable(key)));
                 break;
+
+            /*
+            [[dependency]]
+            group = '...'
+            artifact = '...'
+            version = '...'
+            ---------------------------
+            [dependencies]
+            compile = [
+                'group:artifact:version',
+                {group = '...', artifact = '...', version = '...'},
+            ]
+            ---------------------------
+            [dependencies.test]
+            "gruop:artifact" = 'version'
+            "group:artifact" = {version = '...'}
+            ---------------------------
+             */
             case "dependency":
-            case "dependencies": {
-                var old = model.getDependencies();
-                if (old == null) old = new ArrayList<>();
-                old.addAll(readTomlDependencies(config.getArray(key), null));
-                model.setDependencies(old);
+                readTomlDependencies(model, config.getArray(key), null);
                 break;
-            }
-            case "provider":
-            case "system":
-            case "compile":
-            case "runtime":
-            case "test": {
-                var table = config.getTable(key);
-                for (var sub : table.keySet()) {
-                    switch (sub) {
-                    case "dependency":
-                    case "dependencies":
-                        var old = model.getDependencies();
-                        if (old == null) old = new ArrayList<>();
-                        old.addAll(readTomlDependencies(table.getArray(sub), key));
-                        model.setDependencies(old);
-                        break;
-                    default:
-                        checkTag(key, sub);
-                    }
-                }
+            case "dependencies":
+                readTomlDependencies(model, config.getTable(key));
                 break;
-            }
             case "repositories":
                 model.setRepositories(readTomlRepositories(config.getArray(key)));
                 break;
@@ -158,8 +152,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
-     * @param config
+     * @param model  POM
+     * @param config POM toml
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
      */
@@ -233,8 +227,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config parent toml
+     * @return Parent
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseParent(XmlPullParser, boolean)
      */
@@ -266,8 +260,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config Organization toml
+     * @return Organization
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseOrganization(XmlPullParser, boolean)
      */
@@ -293,8 +287,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
 
     /**
-     * @param config
-     * @return
+     * @param config License toml array
+     * @return list of License
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseLicense(XmlPullParser, boolean)
      */
@@ -309,8 +303,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config License toml
+     * @return License
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseLicense(XmlPullParser, boolean)
      */
@@ -341,8 +335,21 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     *
+     * <pre>
+     *     [project]
+     *     developer = [
+     *      'Name',
+     *      'Name &lt;Email&gt;'
+     *     ]
+     * </pre>
+     * <pre>
+     *     [[project.developer]]
+     *     name = '...'
+     *     email = '...'
+     * </pre>
+     * @param config Developer toml array
+     * @return list of Developer
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDeveloper(XmlPullParser, boolean)
      */
@@ -363,8 +370,20 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     <pre>
+     *     [project]
+     *     contributor = [
+     *      'Name',
+     *      'Name &lt;Email&gt;'
+     *     ]
+     * </pre>
+     * <pre>
+     *     [[project.contributor]]
+     *     name = '...'
+     *     email = '...'
+     * </pre>
+     * @param config Contributor toml array
+     * @return list of Contributor
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseContributor(XmlPullParser, boolean)
      */
@@ -530,7 +549,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
@@ -567,7 +586,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseScm(XmlPullParser, boolean)
@@ -615,7 +634,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseIssueManagement(XmlPullParser, boolean)
@@ -640,7 +659,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseCiManagement(XmlPullParser, boolean)
@@ -668,7 +687,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
@@ -685,7 +704,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
@@ -727,7 +746,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDistributionManagement(XmlPullParser, boolean)
@@ -764,7 +783,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDeploymentRepository(XmlPullParser, boolean)
@@ -805,7 +824,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseSite(XmlPullParser, boolean)
@@ -844,7 +863,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRelocation(XmlPullParser, boolean)
@@ -878,7 +897,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependencyManagement(XmlPullParser, boolean)
@@ -901,7 +920,55 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
+     * @param config
+     * @param scope
+     * @throws ModelParseException
+     */
+    private void readTomlDependencies(Model model, TomlArray config, String scope) throws ModelParseException {
+        Objects.requireNonNull(model, "model");
+        Objects.requireNonNull(config, "dependencies");
+
+        setDependencies(model, readTomlDependencies(config, scope));
+    }
+
+    private void setDependencies(Model model, List<Dependency> deps) {
+        var old = model.getDependencies();
+        if (old == null) {
+            old = new ArrayList<>(deps);
+        } else {
+            old.addAll(deps);
+        }
+        model.setDependencies(old);
+    }
+
+    private void readTomlDependencies(Model model, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(model, "mode");
+        Objects.requireNonNull(config, "dependencies");
+
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "provider":
+            case "system":
+            case "compile":
+            case "runtime":
+            case "test":
+                if (config.isArray(key)) {
+                    setDependencies(model, readTomlDependencies(config.getArray(key), key));
+                } else if (config.isTable(key)) {
+                    setDependencies(model, readTomlDependencies(config.getTable(key), key));
+                } else {
+                    checkTag("dependency", key);
+                }
+                break;
+            default:
+                checkTag("dependency", key);
+            }
+        }
+    }
+
+    /**
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
@@ -911,14 +978,39 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
         var ret = new ArrayList<Dependency>(config.size());
         for (int i = 0; i < config.size(); i++) {
-            ret.add(readTomlDependency(config.getTable(i), scope));
+            var child = config.get(i);
+            if (child instanceof String table) {
+                ret.add(parseDependencyName(table, null, scope));
+            } else if (child instanceof TomlTable table) {
+                ret.add(readTomlDependency(table, scope));
+            } else {
+                checkTag("dependency");
+            }
         }
 
         return ret;
     }
 
     /**
-     * @param model
+     * @param model  POM
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
+     */
+    private List<Dependency> readTomlDependencies(TomlTable config, String scope) throws ModelParseException {
+        Objects.requireNonNull(config, "dependencies");
+
+        var ret = new ArrayList<Dependency>(config.size());
+        for (var key : config.keySet()) {
+            ret.add(parseDependencyName(key, config.get(List.of(key)), scope));
+        }
+
+        return ret;
+    }
+
+
+    /**
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
@@ -930,6 +1022,55 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         if (scope != null) {
             dep.setScope(scope);
         }
+
+        return readTomlDependency(dep, config);
+    }
+
+    private Dependency parseDependencyName(String line, Object config, String scope) throws ModelParseException {
+        Objects.requireNonNull(line, "dependency");
+
+        var dep = new Dependency();
+        if (scope != null) {
+            dep.setScope(scope);
+        }
+
+        // group:artifact:version
+        // group[:artifact] = version | {...}
+        var parts = line.split(":");
+        System.out.println(Arrays.toString(parts));
+        switch (parts.length) {
+        case 3:
+            dep.setVersion(parts[2]);
+        case 2:
+            dep.setArtifactId(parts[1]);
+        case 1:
+            dep.setGroupId(parts[0]);
+            break;
+        default:
+            throw new ModelParseException("Unrecognised tag: 'dependency." + line + "'", -1, -1);
+        }
+
+        if (config != null) {
+            if (config instanceof String version) {
+                dep.setVersion(version);
+            } else if (config instanceof TomlTable table) {
+                readTomlDependency(dep, table);
+            } else {
+                checkType(line, "String|Table");
+            }
+        }
+        return dep;
+    }
+
+    /**
+     * @param model  POM
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
+     */
+    private Dependency readTomlDependency(Dependency dep, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config, "dependency");
+        Objects.requireNonNull(dep, "dependency");
 
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
@@ -951,11 +1092,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 dep.setClassifier(config.getString(key));
                 break;
             case "scope":
-                if (scope == null) {
-                    dep.setScope(config.getString(key));
-                } else {
-                    checkTag(scope + ".dependency[" + dep.getGroupId() + ":" + dep.getArtifactId() + "]", key);
-                }
+                dep.setScope(config.getString(key));
                 break;
             case "systemPath":
                 dep.setSystemPath(config.getString(key));
@@ -964,7 +1101,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 dep.setOptional(config.getBoolean(key));
                 break;
             case "exclusions":
-                System.out.println("Unsupported tag now: 'dependency." + key + "'");
+                dep.setExclusions(readTomlExclusion(dep, config.getArray(key)));
                 break;
             default:
                 checkTag("dependency[" + dep.getGroupId() + ":" + dep.getArtifactId() + "]", key);
@@ -975,7 +1112,55 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseExclusion(XmlPullParser, boolean)
+     */
+    private List<Exclusion> readTomlExclusion(Dependency dep, TomlArray config) throws ModelParseException {
+        Objects.requireNonNull(config, "exclusions");
+
+        var ret = new ArrayList<Exclusion>(config.size());
+        for (int i = 0; i < config.size(); i++) {
+            ret.add(readTomlExclusion(dep, config.getTable(i)));
+        }
+
+        return ret;
+    }
+
+    /**
+     * @param model  POM
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseExclusion(XmlPullParser, boolean)
+     */
+    private Exclusion readTomlExclusion(Dependency dep, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config, "exclusion");
+
+        var ext = new Exclusion();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "group":
+            case "groupId":
+                ext.setGroupId(config.getString(key));
+                break;
+            case "artifact":
+            case "artifactId":
+                ext.setArtifactId(config.getString(key));
+                break;
+            default:
+                var depName = dep.getGroupId() + ":" + dep.getArtifactId();
+                var name = ext.getGroupId() + ":" + ext.getArtifactId();
+                checkTag("dependency[" + depName + "].exclusion[" + name + "]", key);
+            }
+        }
+
+        return ext;
+    }
+
+
+    /**
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
@@ -992,7 +1177,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
@@ -1030,7 +1215,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepositoryPolicy(XmlPullParser, boolean)
@@ -1059,7 +1244,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model
+     * @param model  POM
      * @param config
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
@@ -1423,26 +1608,38 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     private void checkAttribute(String key, String attr) throws ModelParseException {
+        var message = "Unrecognised attribute: '" + key + "." + attr + "'";
         if (isStrict) {
-            throw new ModelParseException("Unrecognised attribute: '" + key + "." + attr + "'", -1, -1);
+            throw new ModelParseException(message, -1, -1);
         } else {
-            System.out.println("Unrecognised attribute: '" + key + "." + attr + "'");
+            System.out.println(message);
         }
     }
 
     private void checkTag(String tag) throws ModelParseException {
+        var message = "Unrecognised tag: '" + tag + "'";
         if (isStrict) {
-            throw new ModelParseException("Unrecognised tag: '" + tag + "'", -1, -1);
+            throw new ModelParseException(message, -1, -1);
         } else {
-            System.out.println("Unrecognised tag: '" + tag + "'");
+            System.out.println(message);
         }
     }
 
     private void checkTag(String key, String tag) throws ModelParseException {
+        var message = "Unrecognised tag: '" + key + "." + tag + "'";
         if (isStrict) {
-            throw new ModelParseException("Unrecognised tag: '" + key + "." + tag + "'", -1, -1);
+            throw new ModelParseException(message, -1, -1);
         } else {
-            System.out.println("Unrecognised tag: '" + key + "." + tag + "'");
+            System.out.println(message);
+        }
+    }
+
+    private void checkType(String key, String type) throws ModelParseException {
+        var message = "Expect tag type " + type + " for '" + key + "'";
+        if (isStrict) {
+            throw new ModelParseException(message, -1, -1);
+        } else {
+            System.out.println(message);
         }
     }
 }

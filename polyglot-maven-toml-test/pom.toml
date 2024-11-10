@@ -22,20 +22,14 @@ group = 'org.slf4j'
 artifact = 'slf4j-api'
 version = '2.0.16'
 
-[[runtime.dependency]]
-group = 'org.slf4j'
-artifact = 'slf4j-simple'
-version = '2.0.16'
+[dependencies]
+runtime = [
+    "org.slf4j:slf4j-simple:2.0.16"
+]
 
-[[test.dependency]]
-group = 'org.junit.jupiter'
-artifact = 'junit-jupiter-api'
-version = '${junit.version}'
-
-[[test.dependency]]
-group = 'org.junit.jupiter'
-artifact = 'junit-jupiter-engine'
-version = '${junit.version}'
+[dependencies.test]
+"org.junit.jupiter:junit-jupiter-api" = "${junit.version}"
+"org.junit.jupiter:junit-jupiter-engine" = "${junit.version}"
 
 [[build.plugin]]
 group = 'org.codehaus.mojo'
