@@ -13,6 +13,7 @@
     <modules>
         <module>polyglot-maven-toml</module>
         <module>example-java-exec</module>
+        <module>example-kotlin</module>
     </modules>
 
 </project>

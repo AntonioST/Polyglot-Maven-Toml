@@ -87,6 +87,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "parent":
                 model.setParent(readTomlParent(config.getTable(key)));
                 break;
+            case "property":
             case "properties":
                 for (var entry : readTomlProperties(config.getTable(key)).entrySet()) {
                     model.addProperty(entry.getKey(), entry.getValue());
@@ -599,7 +600,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         var map = new HashMap<String, String>();
         for (var key : config.keySet()) {
             var value = config.get(key);
-            if (value instanceof String v) {
+            if (value instanceof Boolean v) {
+                map.put(key, v.toString());
+            } else if (value instanceof String v) {
                 map.put(key, v);
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, key);
@@ -614,7 +617,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     private void readTomlProperties(Map<String, String> map, TomlTable config, String p) throws ModelParseException {
         for (var key : config.keySet()) {
             var value = config.get(key);
-            if (value instanceof String v) {
+            if (value instanceof Boolean v) {
+                map.put(p + "." + key, v.toString());
+            } else if (value instanceof String v) {
                 map.put(p + "." + key, v);
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, p + "." + key);
@@ -1482,7 +1487,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 var parts = key.split(":");
                 plugin.setGroupId(parts[0]);
                 plugin.setArtifactId(parts[1]);
-                plugin.setVersion(parts[2]);
+
+                if (parts.length == 3) {
+                    plugin.setVersion(parts[2]);
+                } else if (parts.length > 3){
+                    throw new IllegalArgumentException("");
+                }
 
                 var pluginConfig = table.getTable(List.of(key));
                 for (var subkey : pluginConfig.keySet()) {
@@ -1540,9 +1550,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "artifactId":
                 plugin.setArtifactId(config.getString(key));
                 break;
-            case "version":
-                plugin.setVersion(config.getString(key));
-                break;
             default:
                 readTomlPlugin(plugin, config, key);
             }
@@ -1560,6 +1567,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         Objects.requireNonNull(config, "plugin");
 
         switch (toCamelCase(key)) {
+        case "version":
+            plugin.setVersion(config.getString(key));
+            break;
         case "extensions":
             plugin.setExtensions(config.getBoolean(key));
             break;
