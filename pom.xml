@@ -12,7 +12,7 @@
 
     <modules>
         <module>polyglot-maven-toml</module>
-        <module>polyglot-maven-toml-test</module>
+        <module>example-java-exec</module>
     </modules>
 
 </project>

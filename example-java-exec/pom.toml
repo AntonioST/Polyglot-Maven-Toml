@@ -5,10 +5,9 @@ version = '0.0'
 
 [project]
 model-version = '4.0.0'
-artifact = 'polyglot-maven-toml-test'
+artifact = 'example-java-exec'
 packaging = 'jar'
 name = 'test Maven polyglot for TOML'
-developer = ["ast", { id = "ast2" }, "ast2 <email@com>"]
 
 
 [properties]
@@ -32,5 +31,5 @@ runtime = [
 "org.junit.jupiter:junit-jupiter-engine" = "${junit.version}"
 
 [build.plugin."org.codehaus.mojo:exec-maven-plugin:3.3.0"]
-configuration = { executable = 'maven', main-class = 'io.ast.maven.polyglot.toml.test.Main' }
+configuration = { executable = 'maven', main-class = 'io.ast.maven.polyglot.toml.example_java_exec.Main' }
 
