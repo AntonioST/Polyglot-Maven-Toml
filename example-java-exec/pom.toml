@@ -1,11 +1,8 @@
-[parent]
-group = 'io.ast.polyglot-maven'
-artifact = 'root'
-version = '0.0'
-
 [project]
 model-version = '4.0.0'
+group = 'io.ast.polyglot-maven'
 artifact = 'example-java-exec'
+version = '0.0'
 packaging = 'jar'
 name = 'test Maven polyglot for TOML'
 

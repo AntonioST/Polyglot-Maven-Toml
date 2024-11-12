@@ -1,11 +1,8 @@
-[parent]
-group = 'io.ast.polyglot-maven'
-artifact = 'root'
-version = '0.0'
-
 [project]
 model-version = '4.0.0'
+group = 'io.ast.polyglot-maven'
 artifact = 'example-kotlin'
+version = '0.0'
 packaging = 'jar'
 name = 'test Maven polyglot for kotlin project'
 
@@ -19,9 +16,9 @@ kotlin.compiler.incremental = true
 [dependencies.compile]
 "org.jetbrains.kotlin:kotlin-stdlib" = '${kotlin.version}'
 
-[build]
-source-directory = '${project.basedir}/src/main/kotlin'
-test-source-directory = '${project.basedir}/src/test/kotlin'
+[directories]
+source = '${project.basedir}/src/main/kotlin'
+test-source = '${project.basedir}/src/test/kotlin'
 
 [build.plugin."org.jetbrains.kotlin:kotlin-maven-plugin"]
 version = '${kotlin.version}'
@@ -33,3 +30,5 @@ executions = [
 [build.plugin."org.apache.maven.plugins:maven-jar-plugin:3.4.2"]
 configuration.archive.manifest = {add-classpath = true, main-class = 'io.ast.maven.polyglot.toml.example_kotlin.MainKt'}
 
+[build.plugin."org.codehaus.mojo:exec-maven-plugin:3.3.0"]
+configuration = { executable = 'maven', main-class = 'io.ast.maven.polyglot.toml.example_kotlin.MainKt' }

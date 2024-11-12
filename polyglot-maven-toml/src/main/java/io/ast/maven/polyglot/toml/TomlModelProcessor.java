@@ -96,20 +96,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "scm":
                 model.setScm(readTomlScm(config.getTable(key)));
                 break;
-            case "issue":
-            case "issueManagement":
-                model.setIssueManagement(readTomlIssueManagement(config.getTable(key)));
-                break;
-            case "ci":
-            case "ciManagement":
-                model.setCiManagement(readTomlCiManagement(config.getTable(key)));
-                break;
-            case "distribution":
-            case "distributionManagement":
-                model.setDistributionManagement(readTomlDistributionManagement(config.getTable(key)));
-                break;
-            case "dependencyManagement":
-                model.setDependencyManagement(readTomlDependencyManager(config.getTable(key)));
+
+            case "management":
+                readTomlManagement(model, config.getTable(key));
                 break;
 
             /*
@@ -125,7 +114,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             ]
             ---------------------------
             [dependencies.test]
-            "gruop:artifact" = 'version'
+            "group:artifact" = 'version'
             "group:artifact" = {version = '...'}
             ---------------------------
              */
@@ -135,6 +124,15 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "dependencies":
                 readTomlDependencies(model, config.getTable(key));
                 break;
+            /*
+            [directory]
+            source = '...'
+            test-source = '...'
+             */
+            case "directory":
+            case "directories":
+                model.setBuild(readTomlBuildDirectory(model.getBuild(), config.getTable(key)));
+                break;
             case "repositories":
                 model.setRepositories(readTomlRepositories(config.getArray(key)));
                 break;
@@ -142,7 +140,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 model.setPluginRepositories(readTomlRepositories(config.getArray(key)));
                 break;
             case "build":
-                model.setBuild(readTomlBuild(config.getTable(key)));
+                model.setBuild(readTomlBuild(model.getBuild(), config.getTable(key)));
                 break;
             default:
                 checkTag(key);
@@ -677,6 +675,36 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         return scm;
     }
 
+    private void readTomlManagement(Model model, TomlTable config) throws ModelParseException {
+        Objects.requireNonNull(config, "management");
+
+        var manager = new IssueManagement();
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "issue":
+                model.setIssueManagement(readTomlIssueManagement(config.getTable(key)));
+                break;
+            case "ci":
+                model.setCiManagement(readTomlCiManagement(config.getTable(key)));
+                break;
+            case "distribution":
+                model.setDistributionManagement(readTomlDistributionManagement(config.getTable(key)));
+                break;
+            case "dependency":
+                model.setDependencyManagement(readTomlDependencyManager(config.getTable(key)));
+                break;
+            case "plugin":
+            case "plugins":
+                var build = model.getBuild();
+                if (build == null) build = new Build();
+                build.setPluginManagement(readTomlPluginManagement(config.getTable(key)));
+                break;
+            default:
+                checkTag("management", key);
+            }
+        }
+    }
+
     /**
      * @param model  POM
      * @param config
@@ -1071,7 +1099,6 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         // group:artifact:version
         // group[:artifact] = version | {...}
         var parts = line.split(":");
-        System.out.println(Arrays.toString(parts));
         switch (parts.length) {
         case 3:
             dep.setVersion(parts[2]);
@@ -1283,25 +1310,31 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
      */
-    private Build readTomlBuild(TomlTable config) throws ModelParseException {
+    private Build readTomlBuild(Build build, TomlTable config) throws ModelParseException {
         Objects.requireNonNull(config, "build");
 
-        var build = new Build();
+        if (build == null) build = new Build();
+
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
             case "sourceDirectory":
+                System.out.println("use '[directory] source=...' instead");
                 build.setSourceDirectory(config.getString(key));
                 break;
             case "scriptSourceDirectory":
+                System.out.println("use '[directory] script-source=...' instead");
                 build.setScriptSourceDirectory(config.getString(key));
                 break;
             case "testSourceDirectory":
+                System.out.println("use '[directory] test-source=...' instead");
                 build.setTestSourceDirectory(config.getString(key));
                 break;
             case "outputDirectory":
+                System.out.println("use '[directory] output=...' instead");
                 build.setOutputDirectory(config.getString(key));
                 break;
             case "testOutputDirectory":
+                System.out.println("use '[directory] test-output=...' instead");
                 build.setTestOutputDirectory(config.getString(key));
                 break;
             case "extension":
@@ -1313,10 +1346,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 break;
             case "resource":
             case "resources":
+                System.out.println("use '[[directory.resource]]' instead");
                 build.setResources(readTomlResource(config.getArray(key)));
                 break;
             case "testResource":
             case "testResources":
+                System.out.println("use '[[directory.test-resource]]' instead");
                 build.setTestResources(readTomlResource(config.getArray(key)));
                 break;
             case "directory":
@@ -1334,7 +1369,50 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 build.setPlugins(readTomlPlugins(config.get(key)));
                 break;
             case "pluginManagement":
+                System.out.println("use '[management.plugin]' instead");
                 build.setPluginManagement(readTomlPluginManagement(config.getTable(key)));
+                break;
+            default:
+                checkTag("build", key);
+            }
+        }
+
+        return build;
+    }
+
+    /**
+     * @param model  POM
+     * @param config
+     * @throws ModelParseException
+     * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
+     */
+    private Build readTomlBuildDirectory(Build build, TomlTable config) throws ModelParseException {
+        if (build == null) build = new Build();
+
+        for (var key : config.keySet()) {
+            switch (toCamelCase(key)) {
+            case "source":
+                build.setSourceDirectory(config.getString(key));
+                break;
+            case "scriptSource":
+                build.setScriptSourceDirectory(config.getString(key));
+                break;
+            case "testSource":
+                build.setTestSourceDirectory(config.getString(key));
+                break;
+            case "output":
+                build.setOutputDirectory(config.getString(key));
+                break;
+            case "testOutput":
+                build.setTestOutputDirectory(config.getString(key));
+                break;
+            case "resource":
+            case "resources":
+                build.setResources(readTomlResource(config.getArray(key)));
+                break;
+            case "testResource":
+            case "testResources":
+                build.setTestResources(readTomlResource(config.getArray(key)));
                 break;
             default:
                 checkTag("build", key);
@@ -1490,7 +1568,7 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
                 if (parts.length == 3) {
                     plugin.setVersion(parts[2]);
-                } else if (parts.length > 3){
+                } else if (parts.length > 3) {
                     throw new IllegalArgumentException("");
                 }
 

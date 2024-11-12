@@ -2,65 +2,65 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+  <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>io.ast.polyglot-maven</groupId>
-        <artifactId>root</artifactId>
-        <version>0.0</version>
-    </parent>
+  <parent>
+    <groupId>io.ast.polyglot-maven</groupId>
+    <artifactId>root</artifactId>
+    <version>0.0</version>
+  </parent>
 
-    <artifactId>maven-polyglot-toml</artifactId>
-    <packaging>jar</packaging>
+  <artifactId>maven-polyglot-toml</artifactId>
+  <packaging>jar</packaging>
 
-    <name>Maven polyglot for TOML</name>
+  <name>Maven polyglot for TOML</name>
 
-    <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
 
-    <dependencies>
-        <!-- https://mvnrepository.com/artifact/org.apache.maven/maven-core -->
-        <dependency>
-            <groupId>org.apache.maven</groupId>
-            <artifactId>maven-core</artifactId>
-            <version>3.9.9</version>
-            <scope>provided</scope>
-        </dependency>
+  <dependencies>
+    <!-- https://mvnrepository.com/artifact/org.apache.maven/maven-core -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>3.9.9</version>
+      <scope>provided</scope>
+    </dependency>
 
-        <!-- https://mvnrepository.com/artifact/io.takari.polyglot/polyglot-common -->
-        <dependency>
-            <groupId>io.takari.polyglot</groupId>
-            <artifactId>polyglot-common</artifactId>
-            <version>0.7.2</version>
-        </dependency>
+    <!-- https://mvnrepository.com/artifact/io.takari.polyglot/polyglot-common -->
+    <dependency>
+      <groupId>io.takari.polyglot</groupId>
+      <artifactId>polyglot-common</artifactId>
+      <version>0.7.2</version>
+    </dependency>
 
-        <!-- https://mvnrepository.com/artifact/io.tmio/tuweni-toml -->
-        <dependency>
-            <groupId>io.tmio</groupId>
-            <artifactId>tuweni-toml</artifactId>
-            <version>2.4.2</version>
-        </dependency>
+    <!-- https://mvnrepository.com/artifact/io.tmio/tuweni-toml -->
+    <dependency>
+      <groupId>io.tmio</groupId>
+      <artifactId>tuweni-toml</artifactId>
+      <version>2.4.2</version>
+    </dependency>
 
 
-    </dependencies>
+  </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.codehaus.plexus</groupId>
-                <artifactId>plexus-component-metadata</artifactId>
-                <version>2.1.1</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>generate-metadata</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-component-metadata</artifactId>
+        <version>2.1.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>generate-metadata</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
