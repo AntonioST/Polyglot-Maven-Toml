@@ -31,4 +31,5 @@ executions = [
 ]
 
 [build.plugin."org.apache.maven.plugins:maven-jar-plugin:3.4.2"]
-configuration = {archive = {manifest = {add-classpath = true, main-class = 'io.ast.maven.polyglot.toml.example_kotlin.MainKt'}}}
+configuration.archive.manifest = {add-classpath = true, main-class = 'io.ast.maven.polyglot.toml.example_kotlin.MainKt'}
+
