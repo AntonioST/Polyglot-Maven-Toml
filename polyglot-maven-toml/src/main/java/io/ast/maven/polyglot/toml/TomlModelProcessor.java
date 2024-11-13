@@ -1,8 +1,7 @@
 package io.ast.maven.polyglot.toml;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -19,11 +18,10 @@ import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.codehaus.plexus.util.xml.pull.XmlPullParser;
-import org.sonatype.maven.polyglot.io.ModelReaderSupport;
 
 @SuppressWarnings({"unused", "JavadocReference"})
 @Component(role = ModelProcessor.class)
-public class TomlModelProcessor extends ModelReaderSupport implements ModelProcessor {
+public class TomlModelProcessor implements ModelProcessor {
 
     @Requirement
     private ModelReader modelReader;
@@ -39,6 +37,19 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         return pom.toFile();
     }
 
+    @Override
+    public Model read(File input, Map<String, ?> options) throws IOException, ModelParseException {
+        try (FileInputStream inputStream = new FileInputStream(input)) {
+            Model model = read(inputStream, options);
+            model.setPomFile(input);
+            return model;
+        }
+    }
+
+    @Override
+    public Model read(InputStream input, Map<String, ?> options) throws IOException, ModelParseException {
+        return read(new InputStreamReader(input, Charset.defaultCharset()), options);
+    }
 
     @Override
     public Model read(Reader input, Map<String, ?> options) throws IOException, ModelParseException {
@@ -100,35 +111,12 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "management":
                 readTomlManagement(model, config.getTable(key));
                 break;
-
-            /*
-            [[dependency]]
-            group = '...'
-            artifact = '...'
-            version = '...'
-            ---------------------------
-            [dependencies]
-            compile = [
-                'group:artifact:version',
-                {group = '...', artifact = '...', version = '...'},
-            ]
-            ---------------------------
-            [dependencies.test]
-            "group:artifact" = 'version'
-            "group:artifact" = {version = '...'}
-            ---------------------------
-             */
             case "dependency":
                 readTomlDependencies(model, config.getArray(key), null);
                 break;
             case "dependencies":
                 readTomlDependencies(model, config.getTable(key));
                 break;
-            /*
-            [directory]
-            source = '...'
-            test-source = '...'
-             */
             case "directory":
             case "directories":
                 model.setBuild(readTomlBuildDirectory(model.getBuild(), config.getTable(key)));
@@ -455,8 +443,10 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param contributor Developer or Contributor instance
+     * @param config Developer or Contributor toml
+     * @param <T> type of {@code contributor}
+     * @return {@code contributor}
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseContributor(XmlPullParser, boolean)
      * @see MavenXpp3Reader#parseDeveloper(XmlPullParser, boolean)
@@ -508,8 +498,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config MailingList toml array
+     * @return list of MailingList
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseMailingList(XmlPullParser, boolean)
      */
@@ -523,8 +513,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config MailingList toml
+     * @return MailingList
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseMailingList(XmlPullParser, boolean)
      */
@@ -564,8 +554,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param config
-     * @return
+     * @param config Prerequisites toml
+     * @return Prerequisites
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePrerequisites(XmlPullParser, boolean)
      */
@@ -587,8 +577,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config toml property table
+     * @return properties map
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseModel(XmlPullParser, boolean)
      */
@@ -605,13 +595,19 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, key);
             } else {
-                checkTag("properties[" + key + "]", value.toString());
+                checkTag("properties[" + key + "]", "Boolean|String|Number|Table");
             }
         }
 
         return map;
     }
 
+    /**
+     * @param map    properties map
+     * @param config toml property  sub-table
+     * @param p      parent key
+     * @throws ModelParseException
+     */
     private void readTomlProperties(Map<String, String> map, TomlTable config, String p) throws ModelParseException {
         for (var key : config.keySet()) {
             var value = config.get(key);
@@ -619,17 +615,22 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
                 map.put(p + "." + key, v.toString());
             } else if (value instanceof String v) {
                 map.put(p + "." + key, v);
+            } else if (value instanceof Integer v) {
+                map.put(p + "." + key, v.toString());
+            } else if (value instanceof Double v) {
+                map.put(p + "." + key, v.toString());
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, p + "." + key);
             } else {
-                checkTag("properties", p + "." + key);
+                checkType("properties[" + p + "." + key + "]", "Boolean|String|Number|Table");
             }
         }
     }
 
     /**
-     * @param model  POM
-     * @param config
+     *
+     * @param config Scm toml
+     * @return Scm
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseScm(XmlPullParser, boolean)
      */
@@ -675,6 +676,20 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         return scm;
     }
 
+    /**
+     * <pre>
+     *     [management]
+     *     issue = {}
+     *     ci = {}
+     *     distribution = {}
+     *     dependency = {}
+     *     plugin = {}
+     * </pre>
+     *
+     * @param model  POM
+     * @param config Management toml
+     * @throws ModelParseException
+     */
     private void readTomlManagement(Model model, TomlTable config) throws ModelParseException {
         Objects.requireNonNull(config, "management");
 
@@ -706,8 +721,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config IssueManagement toml
+     * @return IssueManagement
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseIssueManagement(XmlPullParser, boolean)
      */
@@ -731,8 +746,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config CiManagement toml
+     * @return CiManagement
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseCiManagement(XmlPullParser, boolean)
      */
@@ -759,8 +774,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Notifier toml array
+     * @return list of Notifier
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
      */
@@ -776,8 +791,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Notifier toml
+     * @return Notifier
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseNotifiers(XmlPullParser, boolean)
      */
@@ -790,15 +805,19 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
             case "type":
                 not.setType(config.getString(key));
                 break;
+            case "onError":
             case "sendOnError":
                 not.setSendOnError(config.getBoolean(key));
                 break;
+            case "onFailure":
             case "sendOnFailure":
                 not.setSendOnFailure(config.getBoolean(key));
                 break;
+            case "onSuccess":
             case "sendOnSuccess":
                 not.setSendOnSuccess(config.getBoolean(key));
                 break;
+            case "onWarning":
             case "sendOnWarning":
                 not.setSendOnWarning(config.getBoolean(key));
                 break;
@@ -818,8 +837,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config DistributionManagement toml
+     * @return DistributionManagement
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDistributionManagement(XmlPullParser, boolean)
      */
@@ -855,8 +874,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config DeploymentRepository toml
+     * @return DeploymentRepository
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDeploymentRepository(XmlPullParser, boolean)
      */
@@ -896,8 +915,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Site toml
+     * @return Site
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseSite(XmlPullParser, boolean)
      */
@@ -935,8 +954,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config toml
+     * @return Relocation
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRelocation(XmlPullParser, boolean)
      */
@@ -969,8 +988,8 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config DependencyManagement toml
+     * @return DependencyManagement
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependencyManagement(XmlPullParser, boolean)
      */
@@ -992,9 +1011,16 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
+     * <pre>
+     * [[dependency]]
+     * group = '...'
+     * artifact = '...'
+     * version = '...'
+     * </pre>
+     *
      * @param model  POM
-     * @param config
-     * @param scope
+     * @param config Dependency toml array
+     * @param scope Dependency scope, optional.
      * @throws ModelParseException
      */
     private void readTomlDependencies(Model model, TomlArray config, String scope) throws ModelParseException {
@@ -1004,6 +1030,26 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         model.setDependencies(append(model.getDependencies(), readTomlDependencies(config, scope)));
     }
 
+    /**
+     * <pre>
+     * [dependencies]
+     * compile = [
+     *      'group:artifact:version',
+     *      {group = '...', artifact = '...', version = '...'},
+     * ]
+     * </pre>
+     *
+     * <pre>
+     * [dependencies.test]
+     * "group:artifact" = 'version'
+     * "group:artifact" = {version = '...'}
+     * </pre>
+     *
+     * @param model  POM
+     * @param config Dependency toml array
+     * @param scope Dependency scope, optional.
+     * @throws ModelParseException
+     */
     private void readTomlDependencies(Model model, TomlTable config) throws ModelParseException {
         Objects.requireNonNull(model, "mode");
         Objects.requireNonNull(config, "dependencies");
@@ -1030,8 +1076,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Dependencies toml array, contains dependency expr or dependency table.
+     * @param scope Dependency scope, optional.
+     * @return list of Dependency
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
@@ -1054,8 +1101,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Dependencies toml table contains dependency expr ("group:artifact") map to version or a table.
+     * @param scope Dependency scope, optional.
+     * @return list of Dependency
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
@@ -1072,8 +1120,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
 
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Dependency toml
+     * @param scope Dependency scope, optional.
+     * @return list of Dependency
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
@@ -1088,6 +1137,14 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
         return readTomlDependency(dep, config);
     }
 
+    /**
+     *
+     * @param line Dependency expression, example "group[:artifact[:version]]"
+     * @param config ({@code String}) version, or ({@link TomlTable}) table.
+     * @param scope Dependency scope, optional.
+     * @return Dependency
+     * @throws ModelParseException
+     */
     private Dependency parseDependencyName(String line, Object config, String scope) throws ModelParseException {
         Objects.requireNonNull(line, "dependency");
 
@@ -1124,8 +1181,9 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param dep Dependency
+     * @param config Dependency table
+     * @return {@code dep}
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseDependency(XmlPullParser, boolean)
      */
@@ -1381,8 +1439,13 @@ public class TomlModelProcessor extends ModelReaderSupport implements ModelProce
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * <pre>
+     * [directory]
+     * source = '...'
+     * test-source = '...'
+     * </pre>
+     * @param build POM Build
+     * @param config Directory toml
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
      */

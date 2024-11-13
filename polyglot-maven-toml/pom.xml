@@ -30,13 +30,6 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- https://mvnrepository.com/artifact/io.takari.polyglot/polyglot-common -->
-    <dependency>
-      <groupId>io.takari.polyglot</groupId>
-      <artifactId>polyglot-common</artifactId>
-      <version>0.7.2</version>
-    </dependency>
-
     <!-- https://mvnrepository.com/artifact/io.tmio/tuweni-toml -->
     <dependency>
       <groupId>io.tmio</groupId>
