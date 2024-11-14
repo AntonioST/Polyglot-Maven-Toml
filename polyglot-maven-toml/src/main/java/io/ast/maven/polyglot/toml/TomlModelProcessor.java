@@ -1231,8 +1231,9 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param dep Dependency belongs to
+     * @param config Exclusion toml array
+     * @return list of Exclusion
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseExclusion(XmlPullParser, boolean)
      */
@@ -1248,8 +1249,9 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param dep Dependency belongs to
+     * @param config Exclusion toml
+     * @return Exclusion
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseExclusion(XmlPullParser, boolean)
      */
@@ -1279,8 +1281,8 @@ public class TomlModelProcessor implements ModelProcessor {
 
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Repository toml array
+     * @return list of Repository
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
      */
@@ -1296,8 +1298,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param config Repository toml
+     * @return Repository
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepository(XmlPullParser, boolean)
      */
@@ -1334,8 +1336,10 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param repository The name of the Repository belongs to
+     * @param tag current tag, either {@code "releases"} or {@code "snapshots"}
+     * @param config RepositoryPolicy toml
+     * @return RepositoryPolicy
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseRepositoryPolicy(XmlPullParser, boolean)
      */
@@ -1363,8 +1367,9 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param model  POM
-     * @param config
+     * @param build Pom build
+     * @param config Build toml
+     * @return Build
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseBuild(XmlPullParser, boolean)
      */
@@ -1486,7 +1491,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param config Extension toml array
+     * @return list of Extension
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseExtension(XmlPullParser, boolean)
      */
@@ -1500,7 +1506,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param config Extension toml
+     * @return Extension
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseExtension(XmlPullParser, boolean)
      */
@@ -1530,7 +1537,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param config Resource toml array
+     * @return list of Resource
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseResource(XmlPullParser, boolean)
      */
@@ -1544,7 +1552,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param config Resource toml
+     * @return Resource
      * @throws ModelParseException
      * @see MavenXpp3Reader#parseResource(XmlPullParser, boolean)
      */
@@ -1577,7 +1586,8 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param config PluginManagement toml
+     * @return PluginManagement
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePluginManagement(XmlPullParser, boolean)
      */
@@ -1611,8 +1621,8 @@ public class TomlModelProcessor implements ModelProcessor {
      *     configuration = '...'
      * </pre>
      *
-     * @param config
-     * @return
+     * @param config Plugin toml array or table
+     * @return list of Plugin
      * @throws ModelParseException
      */
     private List<Plugin> readTomlPlugins(Object config) throws ModelParseException {
@@ -1658,7 +1668,8 @@ public class TomlModelProcessor implements ModelProcessor {
      *     configuration = '...'
      * </pre>
      *
-     * @param config
+     * @param config Plugin toml array
+     * @return list of Plugin
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
      */
@@ -1673,7 +1684,8 @@ public class TomlModelProcessor implements ModelProcessor {
 
 
     /**
-     * @param config
+     * @param config Plugin toml
+     * @return Plugin
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
      */
@@ -1700,7 +1712,12 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * set {@code plugin}.
+     *
+     * @param plugin current Plugin
+     * @param config Plugin toml
+     * @param key current property
+     * @return {@code plugin}
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePlugin(XmlPullParser, boolean)
      */
@@ -1739,7 +1756,9 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param plugin current plugin
+     * @param config PluginExecution toml array
+     * @return list of PluginExecution
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePluginExecution(XmlPullParser, boolean)
      */
@@ -1753,7 +1772,9 @@ public class TomlModelProcessor implements ModelProcessor {
     }
 
     /**
-     * @param config
+     * @param plugin current plugin
+     * @param config PluginExecution toml
+     * @return PluginExecution
      * @throws ModelParseException
      * @see MavenXpp3Reader#parsePluginExecution(XmlPullParser, boolean)
      */
@@ -1797,6 +1818,9 @@ public class TomlModelProcessor implements ModelProcessor {
         }
     }
 
+    /**
+     * transform toml table to dom object.
+     */
     private Xpp3Dom asDOM(String name, TomlTable config) throws ModelParseException {
         var dom = new Xpp3Dom(name);
         for (var key : config.keySet()) {
