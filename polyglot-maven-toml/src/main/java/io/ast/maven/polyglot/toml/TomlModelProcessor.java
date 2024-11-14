@@ -14,6 +14,7 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.tuweni.toml.Toml;
 import org.apache.tuweni.toml.TomlArray;
 import org.apache.tuweni.toml.TomlTable;
+import org.apache.tuweni.toml.TomlPosition;
 import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
@@ -131,7 +132,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 model.setBuild(readTomlBuild(model.getBuild(), config.getTable(key)));
                 break;
             default:
-                checkTag(key);
+                checkTag(key, config.inputPositionOf(key));
             }
         }
 
@@ -212,7 +213,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 model.setModules(asStringList(config.get(key)));
                 break;
             default:
-                checkTag("project", key);
+                checkTag("project", key, config.inputPositionOf(key));
             }
         }
     }
@@ -244,7 +245,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 parent.setRelativePath(config.getString(key));
                 break;
             default:
-                checkTag("parent", key);
+                checkTag("parent", key, config.inputPositionOf(key));
             }
         }
         return parent;
@@ -269,7 +270,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 organization.setUrl(config.getString(key));
                 break;
             default:
-                checkTag("project.organization", key);
+                checkTag("project.organization", key, config.inputPositionOf(key));
             }
         }
 
@@ -318,7 +319,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 license.setComments(config.getString(key));
                 break;
             default:
-                checkTag("project.license[" + license.getName() + "]", key);
+                checkTag("project.license[" + license.getName() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -371,7 +372,7 @@ public class TomlModelProcessor implements ModelProcessor {
             } else if (content instanceof TomlTable developer) {
                 ret.add(readTomlContributor(new Developer(), developer));
             } else {
-                checkType("developer", "String|Table");
+                checkType("developer", "String|Table", config.inputPositionOf(i));
             }
         }
         return ret;
@@ -490,7 +491,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 }
             default:
                 var role = (contributor instanceof Developer) ? "developer" : "contributor";
-                checkTag("project." + role + "[" + contributor.getName() + "]", key);
+                checkTag("project." + role + "[" + contributor.getName() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -546,7 +547,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 mail.setOtherArchives(asStringList(config.get(key)));
                 break;
             default:
-                checkTag("project.mailingList[" + mail.getName() + "]", key);
+                checkTag("project.mailingList[" + mail.getName() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -569,7 +570,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 pre.setMaven(config.getString(key));
                 break;
             default:
-                checkTag("project.prerequisites", key);
+                checkTag("project.prerequisites", key, config.inputPositionOf(key));
             }
         }
 
@@ -595,7 +596,7 @@ public class TomlModelProcessor implements ModelProcessor {
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, key);
             } else {
-                checkTag("properties[" + key + "]", "Boolean|String|Number|Table");
+                checkTag("properties[" + key + "]", "Boolean|String|Number|Table", config.inputPositionOf(key));
             }
         }
 
@@ -622,7 +623,7 @@ public class TomlModelProcessor implements ModelProcessor {
             } else if (value instanceof TomlTable table) {
                 readTomlProperties(map, table, p + "." + key);
             } else {
-                checkType("properties[" + p + "." + key + "]", "Boolean|String|Number|Table");
+                checkType("properties[" + p + "." + key + "]", "Boolean|String|Number|Table", config.inputPositionOf(key));
             }
         }
     }
@@ -653,7 +654,7 @@ public class TomlModelProcessor implements ModelProcessor {
                         scm.setChildScmUrlInheritAppendPath(entry.getValue());
                         break;
                     default:
-                        checkAttribute("scm", entry.getKey());
+                        checkAttribute("scm", entry.getKey(), config.inputPositionOf(key));
                     }
                 }
                 break;
@@ -670,7 +671,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 scm.setUrl(config.getString(key));
                 break;
             default:
-                checkTag("scm", key);
+                checkTag("scm", key, config.inputPositionOf(key));
             }
         }
         return scm;
@@ -693,7 +694,6 @@ public class TomlModelProcessor implements ModelProcessor {
     private void readTomlManagement(Model model, TomlTable config) throws ModelParseException {
         Objects.requireNonNull(config, "management");
 
-        var manager = new IssueManagement();
         for (var key : config.keySet()) {
             switch (toCamelCase(key)) {
             case "issue":
@@ -715,7 +715,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 build.setPluginManagement(readTomlPluginManagement(config.getTable(key)));
                 break;
             default:
-                checkTag("management", key);
+                checkTag("management", key, config.inputPositionOf(key));
             }
         }
     }
@@ -739,7 +739,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 manager.setUrl(config.getString(key));
                 break;
             default:
-                checkTag("issueManagement", key);
+                checkTag("issueManagement", key, config.inputPositionOf(key));
             }
         }
         return manager;
@@ -767,7 +767,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 manager.setNotifiers(readTomlNotifier(config.getArray(key)));
                 break;
             default:
-                checkTag("ciManagement", key);
+                checkTag("ciManagement", key, config.inputPositionOf(key));
             }
         }
         return manager;
@@ -830,7 +830,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 }
                 break;
             default:
-                checkTag("ciManagement.notifier[" + not.getType() + "]", key);
+                checkTag("ciManagement.notifier[" + not.getType() + "]", key, config.inputPositionOf(key));
             }
         }
         return not;
@@ -867,7 +867,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 manager.setStatus(config.getString(key));
                 break;
             default:
-                checkTag("distributionManagement", key);
+                checkTag("distributionManagement", key, config.inputPositionOf(key));
             }
         }
         return manager;
@@ -907,7 +907,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 repo.setLayout(config.getString(key));
                 break;
             default:
-                checkTag("repository[" + repo.getName() + "]", key);
+                checkTag("repository[" + repo.getName() + "]", key, config.inputPositionOf(key));
             }
         }
         return repo;
@@ -933,7 +933,7 @@ public class TomlModelProcessor implements ModelProcessor {
                         site.setChildSiteUrlInheritAppendPath(entry.getValue());
                         break;
                     default:
-                        checkAttribute("site", entry.getKey());
+                        checkAttribute("site", entry.getKey(), config.inputPositionOf(key));
                     }
                 }
                 break;
@@ -947,7 +947,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 site.setUrl(config.getString(key));
                 break;
             default:
-                checkTag("site", key);
+                checkTag("site", key, config.inputPositionOf(key));
             }
         }
         return site;
@@ -980,7 +980,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 loc.setMessage(config.getString(key));
                 break;
             default:
-                checkTag("relocation", key);
+                checkTag("relocation", key, config.inputPositionOf(key));
             }
         }
 
@@ -1003,7 +1003,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 manager.setDependencies(readTomlDependencies(config.getArray(key), null));
                 break;
             default:
-                checkTag("dependencyManagement", key);
+                checkTag("dependencyManagement", key, config.inputPositionOf(key));
             }
         }
 
@@ -1066,11 +1066,11 @@ public class TomlModelProcessor implements ModelProcessor {
                 } else if (config.isTable(key)) {
                     model.setDependencies(append(model.getDependencies(), readTomlDependencies(config.getTable(key), key)));
                 } else {
-                    checkTag("dependency", key);
+                    checkTag("dependency", key, config.inputPositionOf(key));
                 }
                 break;
             default:
-                checkTag("dependency", key);
+                checkTag("dependency", key, config.inputPositionOf(key));
             }
         }
     }
@@ -1089,11 +1089,11 @@ public class TomlModelProcessor implements ModelProcessor {
         for (int i = 0; i < config.size(); i++) {
             var child = config.get(i);
             if (child instanceof String table) {
-                ret.add(parseDependencyName(table, null, scope));
+                ret.add(parseDependencyName(table, null, scope, config.inputPositionOf(i)));
             } else if (child instanceof TomlTable table) {
                 ret.add(readTomlDependency(table, scope));
             } else {
-                checkTag("dependency");
+                checkTag("dependency", config.inputPositionOf(i));
             }
         }
 
@@ -1112,7 +1112,8 @@ public class TomlModelProcessor implements ModelProcessor {
 
         var ret = new ArrayList<Dependency>(config.size());
         for (var key : config.keySet()) {
-            ret.add(parseDependencyName(key, config.get(List.of(key)), scope));
+            var dKey = List.of(key);
+            ret.add(parseDependencyName(key, config.get(dKey), scope, config.inputPositionOf(dKey)));
         }
 
         return ret;
@@ -1142,10 +1143,11 @@ public class TomlModelProcessor implements ModelProcessor {
      * @param line Dependency expression, example "group[:artifact[:version]]"
      * @param config ({@code String}) version, or ({@link TomlTable}) table.
      * @param scope Dependency scope, optional.
+     * @param pos position of the {@code config}
      * @return Dependency
      * @throws ModelParseException
      */
-    private Dependency parseDependencyName(String line, Object config, String scope) throws ModelParseException {
+    private Dependency parseDependencyName(String line, Object config, String scope, TomlPosition pos) throws ModelParseException {
         Objects.requireNonNull(line, "dependency");
 
         var dep = new Dependency();
@@ -1174,7 +1176,7 @@ public class TomlModelProcessor implements ModelProcessor {
             } else if (config instanceof TomlTable table) {
                 readTomlDependency(dep, table);
             } else {
-                checkType(line, "String|Table");
+                checkType(line, "String|Table", pos);
             }
         }
         return dep;
@@ -1223,7 +1225,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 dep.setExclusions(readTomlExclusion(dep, config.getArray(key)));
                 break;
             default:
-                checkTag("dependency[" + dep.getGroupId() + ":" + dep.getArtifactId() + "]", key);
+                checkTag("dependency[" + dep.getGroupId() + ":" + dep.getArtifactId() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -1272,7 +1274,7 @@ public class TomlModelProcessor implements ModelProcessor {
             default:
                 var depName = dep.getGroupId() + ":" + dep.getArtifactId();
                 var name = ext.getGroupId() + ":" + ext.getArtifactId();
-                checkTag("dependency[" + depName + "].exclusion[" + name + "]", key);
+                checkTag("dependency[" + depName + "].exclusion[" + name + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -1328,7 +1330,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 rep.setLayout(config.getString(key));
                 break;
             default:
-                checkTag("repository[" + rep.getName() + "]", key);
+                checkTag("repository[" + rep.getName() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -1359,7 +1361,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 rep.setChecksumPolicy(config.getString(key));
                 break;
             default:
-                checkTag("repository[" + repository + "]." + tag, key);
+                checkTag("repository[" + repository + "]." + tag, key, config.inputPositionOf(key));
             }
         }
 
@@ -1429,14 +1431,14 @@ public class TomlModelProcessor implements ModelProcessor {
                 break;
             case "plugin":
             case "plugins":
-                build.setPlugins(readTomlPlugins(config.get(key)));
+                build.setPlugins(readTomlPlugins(config.get(key), config.inputPositionOf(key)));
                 break;
             case "pluginManagement":
                 System.out.println("use '[management.plugin]' instead");
                 build.setPluginManagement(readTomlPluginManagement(config.getTable(key)));
                 break;
             default:
-                checkTag("build", key);
+                checkTag("build", key, config.inputPositionOf(key));
             }
         }
 
@@ -1483,7 +1485,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 build.setTestResources(readTomlResource(config.getArray(key)));
                 break;
             default:
-                checkTag("build", key);
+                checkTag("build", key, config.inputPositionOf(key));
             }
         }
 
@@ -1529,7 +1531,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 ext.setVersion(config.getString(key));
                 break;
             default:
-                checkTag("extension[" + ext.getGroupId() + ":" + ext.getArtifactId() + "]", key);
+                checkTag("extension[" + ext.getGroupId() + ":" + ext.getArtifactId() + "]", key, config.inputPositionOf(key));
             }
         }
 
@@ -1578,7 +1580,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 res.setExcludes(asStringList(config.get(key)));
                 break;
             default:
-                checkTag("resource", key);
+                checkTag("resource", key, config.inputPositionOf(key));
             }
         }
 
@@ -1601,7 +1603,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 manager.setPlugins(readTomlPlugins(config.getArray(key)));
                 break;
             default:
-                checkTag("pluginManagement", key);
+                checkTag("pluginManagement", key, config.inputPositionOf(key));
             }
         }
 
@@ -1622,10 +1624,11 @@ public class TomlModelProcessor implements ModelProcessor {
      * </pre>
      *
      * @param config Plugin toml array or table
+     * @param pos position of config
      * @return list of Plugin
      * @throws ModelParseException
      */
-    private List<Plugin> readTomlPlugins(Object config) throws ModelParseException {
+    private List<Plugin> readTomlPlugins(Object config, TomlPosition pos) throws ModelParseException {
         Objects.requireNonNull(config, "plugins");
 
         if (config instanceof TomlArray array) {
@@ -1654,7 +1657,7 @@ public class TomlModelProcessor implements ModelProcessor {
             }
             return ret;
         } else {
-            checkType("build.plugin", "Array|Table");
+            checkType("build.plugin", "Array|Table", pos);
             return List.of();
         }
     }
@@ -1749,7 +1752,7 @@ public class TomlModelProcessor implements ModelProcessor {
             plugin.setConfiguration(asDOM("configuration", config.getTable(key)));
             break;
         default:
-            checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "]", key);
+            checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "]", key, config.inputPositionOf(key));
         }
 
         return plugin;
@@ -1801,7 +1804,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 exe.setConfiguration(asDOM("configuration", config.getTable(key)));
                 break;
             default:
-                checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "].execution", key);
+                checkTag("plugin[" + plugin.getGroupId() + ":" + plugin.getArtifactId() + "].execution", key, config.inputPositionOf(key));
             }
         }
 
@@ -1851,7 +1854,7 @@ public class TomlModelProcessor implements ModelProcessor {
                 }
                 dom.addChild(child);
             } else {
-                checkTag(name, key);
+                checkTag(name, key, config.inputPositionOf(key));
             }
         }
         return dom;
@@ -1887,39 +1890,43 @@ public class TomlModelProcessor implements ModelProcessor {
         return old;
     }
 
-    private void checkAttribute(String key, String attr) throws ModelParseException {
+    private void checkAttribute(String key, String attr, TomlPosition pos) throws ModelParseException {
         var message = "Unrecognised attribute: '" + key + "." + attr + "'";
         if (isStrict) {
-            throw new ModelParseException(message, -1, -1);
+            throw new ModelParseException(message, pos.line(), pos.column());
         } else {
-            System.out.println(message);
+            System.out.println(formatPosition(message, pos));
         }
     }
 
-    private void checkTag(String tag) throws ModelParseException {
+    private void checkTag(String tag, TomlPosition pos) throws ModelParseException {
         var message = "Unrecognised tag: '" + tag + "'";
         if (isStrict) {
-            throw new ModelParseException(message, -1, -1);
+            throw new ModelParseException(message, pos.line(), pos.column());
         } else {
-            System.out.println(message);
+            System.out.println(formatPosition(message, pos));
         }
     }
 
-    private void checkTag(String key, String tag) throws ModelParseException {
+    private void checkTag(String key, String tag, TomlPosition pos) throws ModelParseException {
         var message = "Unrecognised tag: '" + key + "." + tag + "'";
         if (isStrict) {
-            throw new ModelParseException(message, -1, -1);
+            throw new ModelParseException(message, pos.line(), pos.column());
         } else {
-            System.out.println(message);
+            System.out.println(formatPosition(message, pos));
         }
     }
 
-    private void checkType(String key, String type) throws ModelParseException {
+    private void checkType(String key, String type, TomlPosition pos) throws ModelParseException {
         var message = "Expect tag type " + type + " for '" + key + "'";
         if (isStrict) {
-            throw new ModelParseException(message, -1, -1);
+            throw new ModelParseException(message, pos.line(), pos.column());
         } else {
-            System.out.println(message);
+            System.out.println(formatPosition(message, pos));
         }
+    }
+
+    private static String formatPosition(String message, TomlPosition pos) {
+        return message + " @ line:" + pos.line() + ", col:" + pos.column();
     }
 }
